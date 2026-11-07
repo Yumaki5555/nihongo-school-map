@@ -18,7 +18,7 @@ python -I -X utf8 scripts/verify.py
 - `config/link_fixes.json`：開けなくなったリンクの直し先
 - `scripts/check_links.py`：サイトの全リンクを確かめる（`python -I -X utf8 scripts/check_links.py 結果.csv`）
 
-毎月2日の朝（日本時間）に `.github/workflows/monthly-stats.yml` が同じ手順を自動で実行します。点検に合格し、統計の中身が変わったときだけ公開します。
+毎月2日の朝（日本時間）に `.github/workflows/monthly-stats.yml` が同じ手順を自動で実行します。点検に合格し、統計の中身が変わったときだけ公開します。新しい年度の統計は自動では入らないので、e-Stat に出たら Issue で知らせます（`scripts/check_new_stats.py`）。
 
 国の公開資料をもとに作っていますが、国の機関が運営するサイトではありません。
 

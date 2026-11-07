@@ -1,5 +1,6 @@
 # 毎月2日の朝6時ごろ（日本時間）に統計を取り直し、サイトを作り直して点検する。
 # どこかの手順で止まったときや、点検に落ちたときは送信しないので、公開中のサイトはそのまま残る。
+# あわせて、新しい年度の統計が e-Stat に出ていないかを確かめ、出ていたら Issue で知らせる。
 name: 統計の月次更新
 
 on:
@@ -7,14 +8,13 @@ on:
     - cron: "17 21 1 * *"   # 世界標準時の毎月1日21時17分 = 日本時間の2日6時17分
   workflow_dispatch:         # 手動でも実行できるようにする
 
-permissions:
-  contents: write   # 更新を送信するため
-  actions: write    # 下の「自動実行を有効のまま保つ」のため
-
 jobs:
   update:
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    permissions:
+      contents: write   # 更新を送信するため
+      actions: write    # 下の「自動実行を有効のまま保つ」のため
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v7
@@ -52,3 +52,32 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: gh api -X PUT "repos/$GITHUB_REPOSITORY/actions/workflows/monthly-stats.yml/enable"
+
+  # 新しい年度の統計は自動では入らないので、出たことを Issue で知らせる（同じ題名の Issue は二度作らない）
+  notify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: 新しい年度の統計が出ていないか確かめる
+        run: python -I -X utf8 scripts/check_new_stats.py "$RUNNER_TEMP/new_stats.json"
+      - name: 出ていたら Issue で知らせる
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh issue list --state all --limit 1000 --json title --jq '.[].title' > "$RUNNER_TEMP/titles.txt"
+          jq -c '.[]' "$RUNNER_TEMP/new_stats.json" | while read -r item; do
+            title="$(jq -r .title <<<"$item")"
+            if grep -Fxq "$title" "$RUNNER_TEMP/titles.txt"; then
+              echo "知らせ済み：$title"
+              continue
+            fi
+            jq -r .body <<<"$item" > "$RUNNER_TEMP/body.md"
+            gh issue create --title "$title" --body-file "$RUNNER_TEMP/body.md"
+          done
