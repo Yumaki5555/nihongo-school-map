@@ -149,7 +149,8 @@ def build_pages(stats):
         "{{report_url}}": CFG["report_url"],
     }
     tpl = (SITE / "pages" / "_template.html").read_text("utf8")
-    hashes = {name: hashlib.md5((SITE / name).read_bytes()).hexdigest()[:8] for name in FILES}
+    # 改行の違いで値が変わらないようにする（手元の Windows と GitHub の自動更新で同じ結果にするため）
+    hashes = {name: hashlib.md5((SITE / name).read_bytes().replace(b"\r\n", b"\n")).hexdigest()[:8] for name in FILES}
     pages = {
         "index": ("日本語学校・留学生 全国マップ", "地域の学校の場所と、外国人留学生などの公的統計を地図で確認できます。", "", True),
         "ranking": ("ランキング｜日本語学校・留学生 全国マップ", "都道府県と市区町村の学校の数、都道府県の人数を多い順に並べました。", "ランキング", False),

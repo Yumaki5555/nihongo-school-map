@@ -1,0 +1,54 @@
+# 毎月2日の朝6時ごろ（日本時間）に統計を取り直し、サイトを作り直して点検する。
+# どこかの手順で止まったときや、点検に落ちたときは送信しないので、公開中のサイトはそのまま残る。
+name: 統計の月次更新
+
+on:
+  schedule:
+    - cron: "17 21 1 * *"   # 世界標準時の毎月1日21時17分 = 日本時間の2日6時17分
+  workflow_dispatch:         # 手動でも実行できるようにする
+
+permissions:
+  contents: write   # 更新を送信するため
+  actions: write    # 下の「自動実行を有効のまま保つ」のため
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"   # build_site.py は 3.12 以降の書き方を使っている
+      - name: 統計を取り直して発表値と突き合わせる
+        run: python -I -X utf8 scripts/fetch_stats.py
+      - name: サイトを作り直す
+        run: python -I -X utf8 scripts/build_site.py
+      - name: 点検する
+        run: python -I -X utf8 scripts/verify.py
+      - name: 中身が変わったときだけコミットして送信する
+        run: |
+          changed="$(git status --porcelain | cut -c4-)"
+          if [ -z "$changed" ]; then
+            echo "中身は変わっていないので、コミットしません"
+            exit 0
+          fi
+          echo "変わったファイル:"
+          echo "$changed"
+          # 公開しない語の点検は手元でしかできないので、ここでは統計の数字から作るファイルだけを送信する
+          if echo "$changed" | grep -Ev '^(data/stats\.json|docs/data/stats\.json|docs/guide\.html|docs/sources\.html)$'; then
+            echo "::error::統計以外のファイルが変わりました。手元で作り直して点検してから送信してください"
+            exit 1
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/stats.json docs/data/stats.json docs/guide.html docs/sources.html
+          git commit -m "統計の自動更新 $(TZ=Asia/Tokyo date +%Y-%m-%d)"
+          git push
+      # 公開リポジトリでは、60日間動きがないと定期実行が自動で止められる。
+      # 統計が変わらない月はコミットがないので、実行のたびに有効にし直しておく。
+      - name: 自動実行を有効のまま保つ
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh api -X PUT "repos/$GITHUB_REPOSITORY/actions/workflows/monthly-stats.yml/enable"
