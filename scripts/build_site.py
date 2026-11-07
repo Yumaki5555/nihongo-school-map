@@ -141,6 +141,16 @@ def build_pages(stats):
             f'<dt>出典</dt><dd><a href="{ind["source_url"]}" target="_blank" rel="noopener">{ind["source_name"]}</a></dd>'
             f'<dt>基準日</dt><dd>{ind["period"]}</dd><dt>対象</dt><dd>{ind["scope"]}</dd>'
             f'<dt>加工内容</dt><dd>{ind["processing"]}</dd><dt>元の表</dt><dd>{links}</dd><dt>利用条件</dt><dd>{ind["terms"]}（{stats["checked"]}）</dd></dl></section>')
+    for r in stats.get("rates", []):
+        n, d = inds[r["numerator"]["indicator"]], r["denominator"]
+        src_rows.append(
+            f'<section class="src"><h3>{r["label"]}（計算値）</h3><dl>'
+            f'<dt>計算式</dt><dd>{r["formula"]}（{r["rounding"]}）</dd>'
+            f'<dt>分子</dt><dd><a href="{n["source_url"]}" target="_blank" rel="noopener">{n["source_name"]}</a>（基準日 {n["period"]}）</dd>'
+            f'<dt>分母</dt><dd><a href="{d["source_url"]}" target="_blank" rel="noopener">{d["source_name"]}</a>（基準日 {d["period"]}）。{d["label"]}</dd>'
+            f'<dt>そろえた点</dt><dd>{r["why"]}</dd><dt>注意</dt><dd>{r["note"]}ランキングのページで見られます。'
+            f'外国籍の小中高校生と日本語指導の人数は、住民の人口とは対象（年齢や学校の種類）がそろわないため、人口あたりを出していません。</dd>'
+            f'<dt>利用条件</dt><dd>{r["terms"]}（{stats["checked"]}）</dd></dl></section>')
     repl = {
         "{{n_jp}}": fmt(cnt["jp"]), "{{n_higher}}": fmt(higher), "{{n_univ}}": fmt(cnt["univ"]), "{{n_jc}}": fmt(cnt["jc"]), "{{n_kosen}}": fmt(cnt["kosen"]),
         "{{n_senmon}}": fmt(cnt["senmon"]), "{{n_total}}": fmt(len(SCHOOLS)), "{{no_addr}}": fmt(no_addr), "{{no_pos}}": fmt(no_pos),
@@ -153,7 +163,7 @@ def build_pages(stats):
     hashes = {name: hashlib.md5((SITE / name).read_bytes().replace(b"\r\n", b"\n")).hexdigest()[:8] for name in FILES}
     pages = {
         "index": ("日本語学校・留学生 全国マップ", "地域の学校の場所と、外国人留学生などの公的統計を地図で確認できます。", "", True),
-        "ranking": ("ランキング｜日本語学校・留学生 全国マップ", "都道府県と市区町村の学校の数、都道府県の人数を多い順に並べました。", "ランキング", False),
+        "ranking": ("ランキング｜日本語学校・留学生 全国マップ", "都道府県と市区町村の学校の数、都道府県の人数を多い順に並べ、2つの都道府県を比べられます。", "ランキング", False),
         "guide": ("3分でわかる 日本語学校と留学生", "地図の点と色の見方、3つの人数のちがいを短く説明します。", "3分でわかる", False),
         "sources": ("出典・利用条件", "地図で使っている資料、基準日、加工内容、利用条件をまとめています。", "出典", False),
     }

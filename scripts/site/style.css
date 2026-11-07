@@ -202,6 +202,11 @@ summary.ctl-title { cursor: pointer; display: list-item; min-height: 28px; }
 .rk-bar { display: block; height: 6px; margin-top: 3px; background: var(--line-soft); border-radius: 3px; }
 .rk-bar i { display: block; height: 100%; background: #CC7629; border-radius: 3px; }
 .rank small { display: block; font-weight: 400; }
+.cmp { margin-top: 32px; padding-top: 16px; border-top: 2px solid var(--line-soft); }
+.cmp-table td small, .cmp-group small { display: block; font-weight: 400; font-size: .78rem; color: var(--muted); }
+.cmp-table tbody th[scope="row"] { font-weight: 400; }
+.cmp-group th { background: var(--soft); color: var(--brand-dark); padding-top: 8px; }
+.cmp-table thead th.num { min-width: 6.5em; }
 
 /* 学校一覧 */
 .listbox { margin-top: 14px; border-top: 2px solid var(--line-soft); padding-top: 10px; }

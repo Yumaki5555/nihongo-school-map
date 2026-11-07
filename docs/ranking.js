@@ -1,8 +1,9 @@
-/* ランキングのページ：都道府県（校数・人数）と市区町村（校数のみ）を多い順に並べる */
+/* ランキングのページ：都道府県（校数・人数・人口あたり）と市区町村（校数のみ）を多い順に並べる。下で2つの都道府県を横に並べる */
 (function () {
   "use strict";
   const $ = (id) => document.getElementById(id);
   const fmt = (n) => Number(n).toLocaleString("ja-JP");
+  const dec = (n, d) => Number(n).toLocaleString("ja-JP", { minimumFractionDigits: d, maximumFractionDigits: d });
   const esc = (s) => String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   const SCHOOL = {
     jp: { label: "日本語学校の数", types: ["jp"], map: "jp" },
@@ -13,7 +14,9 @@
     senmon: { label: "専門学校の数", types: ["senmon"], map: "senmon" },
   };
   const CITY_TOP = 50;
-  const state = { m: "jp", unit: "pref", pref: "" };
+  const CMP = ["13", "27"]; // 比べる2県の初期値
+  const KINDS = ["jp", "univ", "jc", "kosen", "senmon"];
+  const state = { m: "jp", unit: "pref", pref: "", a: CMP[0], b: CMP[1] };
   let D, S, R;
 
   Promise.all(["data/schools.json", "data/stats.json", "data/regions.json"].map((u) => fetch(u).then((r) => { if (!r.ok) throw new Error(u); return r.json(); })))
@@ -21,6 +24,9 @@
     .catch(() => { $("rk-info").textContent = "データを読み込めませんでした。ページを開き直してください。"; });
 
   function isSchool() { return !!SCHOOL[state.m]; }
+
+  // 人口あたり（計算値）。m は "rate:ID"
+  function rate() { return state.m.startsWith("rate:") ? (S.rates || []).find((r) => "rate:" + r.id === state.m) || null : null; }
 
   function people() {
     const [id, vid] = state.m.split(":");
@@ -32,13 +38,17 @@
   function init() {
     const p = new URLSearchParams(location.search);
     const m = p.get("m") || "";
-    if (SCHOOL[m] || (m.includes(":") && S.indicators.some((i) => i.id === m.split(":")[0]))) state.m = m;
+    if (SCHOOL[m] || (S.rates || []).some((r) => "rate:" + r.id === m) || (m.includes(":") && S.indicators.some((i) => i.id === m.split(":")[0]))) state.m = m;
+    const cm = (p.get("cmp") || "").split("-");
+    if (R.prefs[cm[0]] && R.prefs[cm[1]]) { state.a = cm[0]; state.b = cm[1]; }
     if (p.get("unit") === "city" && SCHOOL[state.m]) state.unit = "city";
     if (R.prefs[p.get("pref")]) state.pref = p.get("pref");
     const sel = $("rk-metric");
     let html = '<optgroup label="学校の数">' + Object.keys(SCHOOL).map((k) => `<option value="${k}">${SCHOOL[k].label}</option>`).join("") + "</optgroup><optgroup label=\"都道府県の人数\">";
     S.indicators.forEach((i) => i.variants.forEach((v) => { html += `<option value="${i.id}:${v.id}">${esc(i.label)}${v.id === "all" ? "" : `（${esc(v.label)}）`}</option>`; }));
-    sel.innerHTML = html + "</optgroup>";
+    html += "</optgroup>";
+    if ((S.rates || []).length) html += '<optgroup label="人口あたり（計算値）">' + S.rates.map((r) => `<option value="rate:${r.id}">${esc(r.label)}</option>`).join("") + "</optgroup>";
+    sel.innerHTML = html;
     sel.value = state.m;
     sel.addEventListener("change", () => { state.m = sel.value; if (!isSchool()) state.unit = "pref"; draw(); });
     $("rk-unit").addEventListener("change", (e) => { state.unit = e.target.value; draw(); });
@@ -46,7 +56,13 @@
     Object.keys(R.prefs).sort().forEach((c) => pf.insertAdjacentHTML("beforeend", `<option value="${c}">${esc(R.prefs[c].name)}</option>`));
     pf.value = state.pref;
     pf.addEventListener("change", () => { state.pref = pf.value; draw(); });
+    ["a", "b"].forEach((k) => {
+      const el = $("cmp-" + k);
+      el.innerHTML = pf.innerHTML.replace('<option value="">全国</option>', "");
+      el.addEventListener("change", () => { state[k] = el.value; drawCompare(); });
+    });
     draw();
+    drawCompare();
   }
 
   // 同じ数は同じ順位にする
@@ -77,20 +93,36 @@
     return ranked(Object.keys(R.prefs).map((code) => ({ code, name: R.prefs[code].name, n: v.values[code], href: `index.html?pref=${code}&view=stats&layer=${ind.id}${v.id === "all" ? "" : "&variant=" + v.id}` })));
   }
 
+  function rateRows() {
+    const r = rate();
+    return ranked(Object.keys(R.prefs).map((code) => ({ code, name: R.prefs[code].name, n: r.values[code], href: `index.html?pref=${code}&view=stats&layer=${r.numerator.indicator}` })));
+  }
+
+  function query(withCmp) {
+    const q = new URLSearchParams({ m: state.m });
+    if (isSchool() && state.unit === "city") { q.set("unit", "city"); if (state.pref) q.set("pref", state.pref); }
+    if (withCmp && (state.a !== CMP[0] || state.b !== CMP[1])) q.set("cmp", state.a + "-" + state.b);
+    return q.toString().replace("%3A", ":");
+  }
+
+  function syncUrl() { history.replaceState(null, "", location.pathname + "?" + query(true) + location.hash); }
+
   function draw() {
     const school = isSchool();
+    const rt = rate();
+    const val = (n) => (rt ? dec(n, rt.digits) : fmt(n));
     $("rk-unit").value = state.unit;
     $("rk-unit").disabled = !school;
     $("rk-pref").hidden = !(school && state.unit === "city");
-    const rows = school ? schoolRows() : peopleRows();
+    const rows = school ? schoolRows() : rt ? rateRows() : peopleRows();
     const unit = school ? "校" : "人";
     const city = school && state.unit === "city";
     const shown = city && !state.pref ? rows.filter((r) => r.rank <= CITY_TOP) : rows;
     const max = Math.max(1, ...shown.map((r) => r.n));
     const area = city ? (state.pref ? R.prefs[state.pref].name + "の市区町村" : "全国の市区町村") : "都道府県";
-    const title = school ? SCHOOL[state.m].label : people().ind.label + (people().v.id === "all" ? "" : `（${people().v.label}）`);
+    const title = school ? SCHOOL[state.m].label : rt ? rt.label + "（計算値）" : people().ind.label + (people().v.id === "all" ? "" : `（${people().v.label}）`);
     $("rk-title").textContent = `${area}別 ${title}`;
-    $("rk-body").innerHTML = shown.map((r) => `<tr><td class="rk-no">${r.rank}</td><td><a href="${r.href}">${esc(r.name)}</a><span class="rk-bar" aria-hidden="true"><i style="width:${(r.n / max * 100).toFixed(1)}%"></i></span></td><td class="num">${fmt(r.n)}${unit}</td></tr>`).join("");
+    $("rk-body").innerHTML = shown.map((r) => `<tr><td class="rk-no">${r.rank}</td><td><a href="${r.href}">${esc(r.name)}</a><span class="rk-bar" aria-hidden="true"><i style="width:${(r.n / max * 100).toFixed(1)}%"></i></span></td><td class="num">${val(r.n)}${unit}</td></tr>`).join("");
     let foot = "";
     let info = "";
     let period = "";
@@ -99,6 +131,13 @@
       foot = city ? "" : `<tr><th scope="row" colspan="2">全国</th><td class="num">${fmt(total)}校</td></tr>`;
       period = `確認日 ${D.generated}`;
       info = `国の一覧に載っている学校を数えました（${period}）。大学・短大・高専・専門学校は本部の所在地で数えています。${city ? `所在地を確認中の学校は入っていません。${state.pref ? "" : `全国は上位${CITY_TOP}位まで表示しています。`}` : ""}<a href="sources.html">出典</a>`;
+    } else if (rt) {
+      const d = rt.denominator;
+      const n = S.indicators.find((i) => i.id === rt.numerator.indicator);
+      const nv = n.variants.find((v) => v.id === rt.numerator.variant);
+      foot = `<tr><th scope="row" colspan="2">全国</th><td class="num">${val(rt.national)}人${nv.unallocated ? `<small>（都道府県不詳${fmt(nv.unallocated)}人を含めて計算）</small>` : ""}</td></tr>`;
+      period = rt.period;
+      info = `<strong>計算値です（国の公表値ではありません）。</strong>計算式：${esc(rt.formula)}（${esc(rt.rounding)}）。${esc(rt.why)}出典：分子 <a href="${esc(nv.url)}" target="_blank" rel="noopener">${esc(n.source_name)}</a>／分母 <a href="${esc(d.source_url)}" target="_blank" rel="noopener">${esc(d.source_name)}</a>`;
     } else {
       const { ind, v } = people();
       foot = `<tr><th scope="row" colspan="2">全国</th><td class="num">${fmt(v.national)}人${v.unallocated ? `<small>（都道府県不詳${fmt(v.unallocated)}人を含む）</small>` : ""}</td></tr>`;
@@ -107,15 +146,46 @@
     }
     $("rk-foot").innerHTML = foot;
     $("rk-info").innerHTML = info;
-    const top = rows.slice(0, 3).map((r) => `${r.rank}位 ${r.name} ${fmt(r.n)}${unit}`).join("\n");
-    const q = new URLSearchParams({ m: state.m });
-    if (city) { q.set("unit", "city"); if (state.pref) q.set("pref", state.pref); }
-    const url = document.body.dataset.site + "ranking.html?" + q.toString().replace("%3A", ":");
-    history.replaceState(null, "", location.pathname + "?" + q.toString().replace("%3A", ":"));
+    const top = rows.slice(0, 3).map((r) => `${r.rank}位 ${r.name} ${val(r.n)}${unit}`).join("\n");
+    const url = document.body.dataset.site + "ranking.html?" + query(false);
+    syncUrl();
     const text = `${area}別 ${title}（${period}）\n${top}\n日本語学校・留学生 全国マップ`;
     const a = $("rk-share");
     a.href = "https://x.com/intent/post?text=" + encodeURIComponent(text) + "&url=" + encodeURIComponent(url);
     a.dataset.text = text;
     window.__rankCheck = { rows: rows.length, shown: shown.length, top: rows.slice(0, 3), total: rows.reduce((s, r) => s + r.n, 0), text };
+  }
+
+  // 全国の順位（同じ数は同じ順位）
+  function rankOf(values, code) { return 1 + Object.values(values).filter((x) => x > values[code]).length; }
+
+  // 2つの都道府県：同じ資料・同じ基準日の数だけを、資料ごとの見出しの下で横に並べる
+  function drawCompare() {
+    const { a, b } = state;
+    $("cmp-a").value = a;
+    $("cmp-b").value = b;
+    $("cmp-ha").textContent = R.prefs[a].name;
+    $("cmp-hb").textContent = R.prefs[b].name;
+    const check = [];
+    const cell = (values, code, show) => `<td class="num">${show(values[code])}<small>全国${rankOf(values, code)}位</small></td>`;
+    const group = (title, sub) => `<tr class="cmp-group"><th scope="colgroup" colspan="3">${esc(title)}<small>${sub}</small></th></tr>`;
+    const row = (label, values, show) => { check.push([label, values[a], values[b]]); return `<tr><th scope="row">${esc(label)}</th>${cell(values, a, show)}${cell(values, b, show)}</tr>`; };
+    const cnt = {};
+    KINDS.forEach((t) => { cnt[t] = {}; Object.keys(R.prefs).forEach((c) => { cnt[t][c] = 0; }); });
+    D.schools.forEach((s) => { if (cnt[s.t]) cnt[s.t][s.p]++; });
+    let h = group("学校の数", `国の一覧で数えた校数・確認日 ${esc(D.generated)}。大学・短大・高専・専門学校は本部・本校の所在地で数えています。`);
+    KINDS.forEach((t) => { h += row(SCHOOL[t].label.replace(/の数$/, ""), cnt[t], (n) => fmt(n) + "校"); });
+    S.indicators.forEach((ind) => {
+      h += group(ind.label, `${esc(ind.source_name)}・基準日 ${esc(ind.period)}。${esc(ind.note)}`);
+      ind.variants.forEach((v) => { h += row(v.id === "all" ? "合計" : v.label, v.values, (n) => fmt(n) + "人"); });
+    });
+    (S.rates || []).forEach((r) => {
+      h += group(r.label + "（計算値）", `国の公表値ではありません。${esc(r.formula)}（${esc(r.rounding)}）。`);
+      h += row("住民1万人あたり", r.values, (n) => dec(n, r.digits) + "人");
+    });
+    $("cmp-body").innerHTML = h;
+    $("cmp-same").hidden = a !== b;
+    syncUrl();
+    window.__cmpCheck = { a, b, rows: check };
   }
 })();

@@ -4,13 +4,13 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>ランキング｜日本語学校・留学生 全国マップ</title>
-<meta name="description" content="都道府県と市区町村の学校の数、都道府県の人数を多い順に並べました。">
+<meta name="description" content="都道府県と市区町村の学校の数、都道府県の人数を多い順に並べ、2つの都道府県を比べられます。">
 <meta name="theme-color" content="#79591F">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="日本語学校・留学生 全国マップ">
 <meta property="og:locale" content="ja_JP">
 <meta property="og:title" content="ランキング｜日本語学校・留学生 全国マップ">
-<meta property="og:description" content="都道府県と市区町村の学校の数、都道府県の人数を多い順に並べました。">
+<meta property="og:description" content="都道府県と市区町村の学校の数、都道府県の人数を多い順に並べ、2つの都道府県を比べられます。">
 <meta property="og:url" content="https://yumaki5555.github.io/nihongo-school-map/ranking.html">
 <meta property="og:image" content="https://yumaki5555.github.io/nihongo-school-map/ogp.png">
 <meta property="og:image:width" content="1200">
@@ -21,7 +21,7 @@
 <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 
-<link rel="stylesheet" href="style.css?v=01d7f473">
+<link rel="stylesheet" href="style.css?v=965eecd7">
 <style>nihon-site-nav:not(:defined){display:block;min-height:45px;padding:0 16px;background:#f4f6f6;border-bottom:1px solid #d5dcde;font:14px/44px system-ui,sans-serif}@media print{nihon-site-nav{display:none!important}}</style>
 </head>
 <body data-page="ranking" data-site="https://yumaki5555.github.io/nihongo-school-map/">
@@ -35,7 +35,7 @@
 <main id="main">
 <div class="wrap narrow">
   <h1>ランキング</h1>
-  <p class="muted">学校の数と人数を、多い順に並べました。順位は数の多さだけを表します（地域への影響や学校の評価ではありません）。</p>
+  <p class="muted">学校の数と人数を、多い順に並べました。順位は数の多さだけを表します（地域への影響や学校の評価ではありません）。<a href="#compare">2つの都道府県をくらべる</a></p>
   <div class="rk-tools">
     <label class="rk-field">何を比べる？
       <select id="rk-metric"></select></label>
@@ -52,6 +52,23 @@
     <tfoot id="rk-foot"></tfoot>
   </table></div>
   <p class="fine">地域名を押すと、地図でその地域を開きます。別の統計どうしを足したり比べたりはできません。</p>
+
+  <section class="cmp" id="compare" aria-labelledby="cmp-title">
+    <h2 id="cmp-title">2つの都道府県をくらべる</h2>
+    <p class="muted">同じ資料・同じ基準日の数だけを、資料ごとに横に並べます。資料によって対象と基準日が違うので、ちがう資料の行どうしは比べたり足したりできません。</p>
+    <div class="rk-tools">
+      <label class="rk-field">1つ目の都道府県
+        <select id="cmp-a"></select></label>
+      <label class="rk-field">2つ目の都道府県
+        <select id="cmp-b"></select></label>
+    </div>
+    <p class="fine" id="cmp-same" hidden>同じ都道府県を選んでいます。</p>
+    <div class="tablewrap"><table class="plain cmp-table">
+      <thead><tr><th scope="col">項目</th><th scope="col" class="num" id="cmp-ha"></th><th scope="col" class="num" id="cmp-hb"></th></tr></thead>
+      <tbody id="cmp-body"></tbody>
+    </table></div>
+    <p class="fine">人数は国の統計で、学校ごとの人数ではありません。資料ごとの対象と基準日は<a href="sources.html">出典</a>にまとめています。</p>
+  </section>
 </div>
 
 </main>
@@ -60,6 +77,6 @@
   <p>国の公開資料をもとに作っています。国の機関が運営するサイトではありません。確認できない情報は推測で埋めません。<a href="sources.html">出典・利用条件</a>／<a href="https://docs.google.com/forms/d/e/1FAIpQLSeMRMh8OCG1ZClms-6yE_TXk7xcAizr5k9-E5q6iiOx2r2xMA/viewform" target="_blank" rel="noopener">情報の訂正・お問い合わせ</a></p>
   <p class="muted">最終確認：2026-11-07</p>
 </footer>
-<script src="ranking.js?v=22b011be"></script>
+<script src="ranking.js?v=6877e052"></script>
 </body>
 </html>

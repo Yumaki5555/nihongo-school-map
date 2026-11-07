@@ -13,7 +13,7 @@ python -I -X utf8 scripts/verify.py
 ```
 
 - `data/schools.json`：学校の台帳（公開してよい項目のみ）
-- `data/stats.json`：都道府県別の統計（出典・基準日・利用条件つき）
+- `data/stats.json`：都道府県別の統計（出典・基準日・利用条件つき）と、住民1万人あたりの留学の人数（計算値。分母は住民基本台帳の人口）
 - `scripts/site/`：画面のもと。`docs/` は自動で作るので直接直さない
 - `config/link_fixes.json`：開けなくなったリンクの直し先
 - `scripts/check_links.py`：サイトの全リンクを確かめる（`python -I -X utf8 scripts/check_links.py 結果.csv`）

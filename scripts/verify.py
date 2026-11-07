@@ -6,6 +6,8 @@ import json
 import re
 import sys
 from collections import Counter
+from datetime import date
+from decimal import ROUND_HALF_UP, Decimal
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -152,6 +154,27 @@ ok("全国の投稿文は指示書の文のまま", "あなたの地域に、日
 ok("投稿文のURLが公開サイト", 'data-site="https://yumaki5555.github.io/nihongo-school-map/"' in ih, "")
 ok("画像が自動で添付されないと案内する", "画像は自動では添付されません。保存してからXで添付してください。" in ih, "")
 ok("地域の投稿文はXの文字数に収める", "X_LIMIT = 280" in sj and "fitsX" in sj, "")
+
+# ---- 人口あたり・2県比較（改善指示書の第4段階） ----
+rates = stats.get("rates", [])
+ok("人口あたりは1種類（住民1万人あたりの留学）", [r["id"] for r in rates] == ["ryugaku_pop"], str([r["id"] for r in rates]))
+for r in rates:
+    d, num_ind = r["denominator"], ref[r["numerator"]["indicator"]]
+    nv = next(v for v in num_ind["variants"] if v["id"] == r["numerator"]["variant"])
+    ok(f"{r['id']}：分母は47都道府県の人口で、合計＝全国", set(d["values"]) == codes and all(isinstance(x, int) and x > 0 for x in d["values"].values()) and sum(d["values"].values()) == d["national"], "")
+    ok(f"{r['id']}：分母は2026年1月1日の住民基本台帳人口（全国123,767,642人）", d["national"] == 123767642 and d["as_of"] == "2026-01-01", f"{d['national']} {d['as_of']}")
+    gap = abs((date.fromisoformat(d["as_of"]) - date.fromisoformat(num_ind["as_of"])).days)
+    ok(f"{r['id']}：分子と分母の基準日の差が31日以内", gap <= 31, f"{gap}日")
+    calc = lambda n, base: float((Decimal(n) * r["per"] / Decimal(base)).quantize(Decimal("0.1"), ROUND_HALF_UP))
+    ok(f"{r['id']}：47都道府県と全国の値を計算し直して一致", set(r["values"]) == codes and all(r["values"][c] == calc(nv["values"][c], d["values"][c]) for c in codes) and r["national"] == calc(nv["national"], d["national"]), "")
+    ok(f"{r['id']}：計算式・端数処理・そろえた点・計算値の注記・出典がある", all(r.get(k) for k in ("formula", "rounding", "why", "terms", "period")) and "国の公表値ではなく" in r["note"] and d["source_url"].startswith("https://"), "")
+rj = (DOCS / "ranking.js").read_text("utf8")
+rh = (DOCS / "ranking.html").read_text("utf8")
+sh = (DOCS / "sources.html").read_text("utf8")
+ok("ランキングの人口あたりは計算値と明記し、計算式と分子・分母の出典を出す", "計算値です（国の公表値ではありません）" in rj and "rt.formula" in rj and "分子 <a" in rj and "分母 <a" in rj, "")
+ok("出典ページに人口あたりの計算式と分母の出典がある", rates and all(r["formula"] in sh and r["denominator"]["source_name"] in sh for r in rates), "")
+ok("2県比較はランキングのページにあり、トップには置かない", 'id="compare"' in rh and 'id="cmp-a"' in rh and 'id="cmp-b"' in rh and "cmp-a" not in ih, "")
+ok("2県比較は資料ごとに見出しと基準日を付け、ちがう資料は比べないと明記", "ind.period" in rj and "cmp-group" in rj and "ちがう資料の行どうしは比べたり足したりできません" in rh, "")
 
 # ---- 入口サイトが読む形 ----
 ok("regions.json の形（prefs[県].n・cities・generated）", regions.get("generated") and len(regions["prefs"]) == 47 and all("n" in p and "cities" in p for p in regions["prefs"].values()), "")

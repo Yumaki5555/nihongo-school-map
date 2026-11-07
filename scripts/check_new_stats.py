@@ -34,6 +34,11 @@ def fiscal_years(page):
     return {(ERA[e] + (1 if n == "元" else int(n)),) for e, n in re.findall(r"■\s*(令和|平成)(元|\d+)年度(?!\s*\(速報)", page)}
 
 
+def jan_years(page):
+    """住民基本台帳（毎年1月1日）：一覧の年の絞り込み（data-key="year" data-value="20260"）から年を集める"""
+    return {(int(y),) for y in re.findall(r'data-key="year"\s+data-value="(\d{4})0"', page)}
+
+
 def wareki(p):
     return f"令和{p[0] - 2018}年度"
 
@@ -44,7 +49,7 @@ TARGETS = [
         "id": "ryugaku", "name": "在留外国人統計（在留資格「留学」）", "parse": half_years,
         "url": FILES + "toukei=00250012&tstat=000001018034&tclass1=000001060399&layout=datalist&cycle=1",
         "now": lambda d: (int(d[:4]), int(d[5:7])), "label": lambda p: f"{p[0]}年{p[1]}月末",
-        "todo": "`scripts/fetch_stats.py` の表の番号（`RYU_SID`・`RYU_CHECK_SID`）、在留外国人の総数の発表値、時点の表記と、`scripts/verify.py` の留学の発表値・都道府県不詳の人数を直します。",
+        "todo": "`scripts/fetch_stats.py` の表の番号（`RYU_SID`・`RYU_CHECK_SID`）、在留外国人の総数の発表値、時点の表記と、`scripts/verify.py` の留学の発表値・都道府県不詳の人数を直します。`RYU_ASOF`・`RYU_PERIOD` も直します。6月末に直すと人口あたり（分母は1月1日の人口）と基準日がそろわないため `fetch_stats.py` が止まります。そのときは人口あたりを外す（`POP_SID = None`）か、12月末の発表を待ちます。",
     },
     {
         "id": "foreign", "name": "学校基本調査（外国籍の小中高校生）", "parse": fiscal_years,
@@ -58,15 +63,25 @@ TARGETS = [
         "now": lambda d: (int(d[:4]),), "label": wareki,
         "todo": "`scripts/fetch_stats.py` の表の番号と発表値（`NIHONGO`、合計の 84,759 など）、時点の表記と、`scripts/verify.py` の日本語指導の発表値を直します。",
     },
+    {
+        "id": "ryugaku_pop", "name": "住民基本台帳の人口（人口あたりの分母）", "parse": jan_years,
+        "url": FILES + "toukei=00200241&tstat=000001039591",
+        "now": lambda d: (int(d[:4]),), "label": lambda p: f"{p[0]}年1月1日",
+        "todo": "人口あたりは、留学の人数と基準日がそろうときだけ出します。留学を前の年の12月末に直すときに合わせて、`scripts/fetch_stats.py` の `POP_SID`・`POP_JP_SID`・`POP_FR_SID`（総計・日本人住民・外国人住民の都道府県別の表）と `POP_ASOF`・`POP_PERIOD`・`POP_TITLE`・出典名の年、`scripts/verify.py` の人口の合計を直します。",
+    },
 ]
 
 
 def main():
     out_path = Path(sys.argv[1])
-    stats = {i["id"]: i for i in json.loads((ROOT / "data" / "stats.json").read_text("utf8"))["indicators"]}
+    data = json.loads((ROOT / "data" / "stats.json").read_text("utf8"))
+    asof = {i["id"]: i["as_of"] for i in data["indicators"]}
+    asof.update({r["id"]: r["denominator"]["as_of"] for r in data.get("rates", [])})
     found = []
     for t in TARGETS:
-        now = t["now"](stats[t["id"]]["as_of"])
+        if t["id"] not in asof:  # 人口あたりを外しているとき
+            continue
+        now = t["now"](asof[t["id"]])
         periods = t["parse"](get(t["url"]))
         if now not in periods:
             sys.exit(f"{t['name']}：一覧に今の時点（{t['label'](now)}）が見つかりません。ページの作りが変わったかもしれません。{t['url']}")

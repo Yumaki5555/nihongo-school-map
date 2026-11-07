@@ -9,6 +9,8 @@ import sys
 import time
 import unicodedata
 import urllib.request
+from datetime import date
+from decimal import ROUND_HALF_UP, Decimal
 import xml.etree.ElementTree as ET
 import zipfile
 from collections import Counter
@@ -173,13 +175,83 @@ for k, (sid, want) in NIHONGO.items():
 nihongo_all = {c: nihongo["foreign"][c] + nihongo["japan"][c] for c in CODE.values()}
 check("合計（発表値）", sum(nihongo_all.values()), 84759)
 
+# ---- ④ 住民基本台帳の人口（人口あたりの分母）----
+# 留学（2025年12月末）と基準日がそろう表だけを使う。そろわない時点に変えるときは POP_SID = None にすると人口あたりを出さない
+POP_SID, POP_JP_SID, POP_FR_SID = "000040479047", "000040479051", "000040479055"  # 令和8年1月1日 総計／日本人住民／外国人住民（都道府県別）
+POP_ASOF, POP_PERIOD, POP_TITLE = "2026-01-01", "2026年1月1日", "令和8年1月1日住民基本台帳人口"
+RYU_ASOF, RYU_PERIOD = "2025-12-31", "2025年12月末"
+
+
+def pop_table(sid):
+    """住民基本台帳の都道府県別の表から「人口 計」の列を読む。合計の行も返す"""
+    rows = first_sheet(fetch(sid))
+    cells = [[clean(c) for c in r] for r in rows]
+    if POP_TITLE not in cells[0][0]:
+        sys.exit(f"住民基本台帳の表の時点が違います：{cells[0][0]}")
+    h = next(i for i, r in enumerate(cells) if "計" in r)
+    col = cells[h].index("計")
+    if cells[h - 1][col] != "人口":
+        sys.exit("住民基本台帳の表の列が読めません")
+    vals, national = {}, None
+    for r, raw in zip(cells, rows):
+        name = next((c for c in r[:col] if c in CODE or c == "合計"), "")  # 左の列は団体コード・名前・男・女
+        if not name or col >= len(raw):
+            continue
+        if name in CODE and CODE[name] not in vals:
+            vals[CODE[name]] = num(raw[col])
+        elif name == "合計" and national is None:
+            national = num(raw[col])
+    if len(vals) != 47 or any(v is None for v in vals.values()) or national is None:
+        sys.exit(f"住民基本台帳の都道府県の行が読めません：{len(vals)}")
+    return vals, national
+
+
+def per10k(n, d):
+    return float((Decimal(n) * 10000 / Decimal(d)).quantize(Decimal("0.1"), ROUND_HALF_UP))
+
+
+rates = []
+if POP_SID:
+    print("④ 住民基本台帳の人口")
+    gap = (date.fromisoformat(POP_ASOF) - date.fromisoformat(RYU_ASOF)).days
+    if abs(gap) > 31:
+        sys.exit(f"人口（{POP_ASOF}）と留学（{RYU_ASOF}）の基準日が{gap}日ずれています。そろう表に直すか、POP_SID = None にしてください")
+    pop, pop_nat = pop_table(POP_SID)
+    check("住民基本台帳の人口（総計）", sum(pop.values()), pop_nat)
+    jp, jp_nat = pop_table(POP_JP_SID)
+    fr, fr_nat = pop_table(POP_FR_SID)
+    check("日本人住民＋外国人住民＝総計", jp_nat + fr_nat, pop_nat)
+    bad = [c for c in CODE.values() if jp[c] + fr[c] != pop[c] or ryu_vals[c] > fr[c]]
+    if bad:
+        sys.exit(f"都道府県ごとの人口が合いません（または留学が外国人住民より多い）：{bad}")
+    print("  一致 47都道府県ごとに 日本人住民＋外国人住民＝総計、留学≦外国人住民")
+    ryu_nat = sum(ryu_vals.values()) + unallocated
+    rates.append({
+        "id": "ryugaku_pop", "label": "住民1万人あたりの在留資格「留学」の人数", "unit": "人", "per": 10000, "digits": 1,
+        "numerator": {"indicator": "ryugaku", "variant": "all"},
+        "period": f"{RYU_PERIOD}／{POP_PERIOD}",
+        "formula": f"在留資格「留学」の人数（{RYU_PERIOD}）÷ 住民基本台帳の人口（{POP_PERIOD}）× 10,000",
+        "rounding": "小数第2位を四捨五入",
+        "note": "国の公表値ではなく、このサイトが2つの国の統計から計算した値です。",
+        "why": f"どちらも住んでいる都道府県で数えた人数で、基準日の差は{gap}日です。在留資格「留学」の人も、原則として外国人住民として住民基本台帳に記録されます。",
+        "national": per10k(ryu_nat, pop_nat),
+        "values": {c: per10k(ryu_vals[c], pop[c]) for c in CODE.values()},
+        "denominator": {
+            "label": "住民基本台帳の人口（日本人住民と外国人住民の合計）", "as_of": POP_ASOF, "period": POP_PERIOD,
+            "source_name": "総務省「住民基本台帳に基づく人口、人口動態及び世帯数」令和8年1月1日現在（e-Stat）", "source_url": stat_url(POP_SID),
+            "national": pop_nat, "values": pop,
+        },
+        "terms": TERMS,
+    })
+    print(f"  全国 {rates[0]['national']}人（1万人あたり）")
+
 MEXT_KIHON = "https://www.e-stat.go.jp/stat-search/files?toukei=00400001&tstat=000001011528"
 MEXT_NIHONGO = "https://www.mext.go.jp/b_menu/houdou/31/09/1421569_00007.htm"
 out = {
     "checked": CHECKED,
     "indicators": [
         {
-            "id": "ryugaku", "label": "在留資格「留学」の人数", "note": "住んでいる都道府県で数えた人数です。学校の所在地ではありません。", "unit": "人", "as_of": "2025-12-31", "period": "2025年12月末",
+            "id": "ryugaku", "label": "在留資格「留学」の人数", "note": "住んでいる都道府県で数えた人数です。学校の所在地ではありません。", "unit": "人", "as_of": RYU_ASOF, "period": RYU_PERIOD,
             "scope": "住んでいる都道府県で数えた人数です。学校の所在地ではありません。大学・専門学校・日本語学校の学生のほか、高校生なども含みます。",
             "source_name": "出入国在留管理庁「在留外国人統計」2025年12月末（e-Stat）", "source_url": stat_url(RYU_SID),
             "processing": f"「在留外国人統計テーブルデータ」の在留資格「留学」を都道府県ごとに合計して作成。住所が未定・不詳の{unallocated:,}人は都道府県に入れていません。",
@@ -212,6 +284,7 @@ out = {
             ],
         },
     ],
+    "rates": rates,
 }
 OUT.parent.mkdir(exist_ok=True)
 OUT.write_text(json.dumps(out, ensure_ascii=False, indent=1), "utf8")
