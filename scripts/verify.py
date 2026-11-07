@@ -133,6 +133,17 @@ img = (DOCS / "map-image.js").read_text("utf8")
 ok("保存画像は通信しない（タイル・送信なし）", not re.search(r"fetch\(|XMLHttpRequest|cyberjapandata|sendBeacon|new Image", img), "")
 ok("保存画像に出典とクレジットがある", "国土数値情報" in img and "位置参照情報" in img and "siteUrl" in img, "")
 
+# ---- 地図の表示（2026-11-07 改善指示書の第1・2段階） ----
+sj = (DOCS / "site.js").read_text("utf8")
+ih = (DOCS / "index.html").read_text("utf8")
+ok("地図に出すものは3種類（学校の場所・人数の分布・両方）", all(f'data-view="{k}"' in ih for k in ("place", "stats", "both")) and "aria-pressed" in ih, "")
+ok("位置のない学校も公開データに残す（消さない）", sum("la" not in s for s in schools) == sum(s["lat"] is None for s in master), "")
+ok("登録校数と地図に位置を表示できる校数を分けて出す", "地図に位置を表示できる" in sj, "")
+ok("大学・専門学校は本部・本校の所在地と明記", "本部・本校の所在地" in sj, "")
+ok("学校の所在地と国の統計を分けて見出しを付ける", "学校の所在地" in sj and "都道府県別の人数（国の統計）" in sj, "")
+ok("統計は合算・単純比較できないと明記", "合算・単純比較できません" in sj, "")
+ok("色分けは学校ごとの人数でないと明記", "学校ごとの人数ではありません" in sj, "")
+
 # ---- 入口サイトが読む形 ----
 ok("regions.json の形（prefs[県].n・cities・generated）", regions.get("generated") and len(regions["prefs"]) == 47 and all("n" in p and "cities" in p for p in regions["prefs"].values()), "")
 ok("regions の校数の合計＝日本語学校の校数", sum(p["n"] for p in regions["prefs"].values()) == cnt["jp"], "")

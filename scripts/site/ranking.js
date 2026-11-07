@@ -74,7 +74,7 @@
 
   function peopleRows() {
     const { ind, v } = people();
-    return ranked(Object.keys(R.prefs).map((code) => ({ code, name: R.prefs[code].name, n: v.values[code], href: `index.html?pref=${code}&layer=${ind.id}${v.id === "all" ? "" : "&variant=" + v.id}` })));
+    return ranked(Object.keys(R.prefs).map((code) => ({ code, name: R.prefs[code].name, n: v.values[code], href: `index.html?pref=${code}&view=stats&layer=${ind.id}${v.id === "all" ? "" : "&variant=" + v.id}` })));
   }
 
   function draw() {

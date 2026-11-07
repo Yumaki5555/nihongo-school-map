@@ -57,6 +57,14 @@ summary.ctl-title { cursor: pointer; display: list-item; min-height: 28px; }
 .ctl-row { display: flex; flex-wrap: wrap; gap: 6px 10px; margin-top: 4px; align-items: center; }
 .ctl-row select { flex: 1 1 130px; min-width: 0; }
 .ctl-row #sel-layer { flex: 3 1 180px; }
+/* 地図に出すもの（3つのうち1つ） */
+.seg { display: inline-flex; flex: 0 1 auto; max-width: 100%; border: 1px solid var(--brand); border-radius: 8px; overflow: hidden; background: var(--white); }
+.seg button { flex: 1 1 auto; font: inherit; font-size: .88rem; min-height: 40px; padding: 4px 12px; border: 0; background: var(--white); color: var(--brand-dark); cursor: pointer; white-space: nowrap; }
+.seg button + button { border-left: 1px solid var(--brand); }
+.seg button:hover { background: var(--soft); }
+.seg button[aria-pressed="true"] { background: var(--brand); color: var(--white); font-weight: 700; }
+.seg button[aria-pressed="true"]::before { content: "✓"; content: "✓" / ""; margin-right: 3px; }
+.seg button:focus-visible { outline-offset: -4px; outline-color: var(--ink); }
 .ctl-row #sel-variant { flex: 1 1 90px; }
 .searchbox { position: relative; flex: 1 1 100%; min-width: 0; }
 #find { width: 100%; }
@@ -98,6 +106,8 @@ summary.ctl-title { cursor: pointer; display: list-item; min-height: 28px; }
 .cl { display: flex; align-items: center; justify-content: center; border-radius: 50%; background: rgba(255, 255, 255, .94); color: var(--ink); font-weight: 700; font-size: .76rem; border: 2px solid var(--muted); box-sizing: border-box; }
 .cl-pref { background: none; border: 0; border-radius: 0; cursor: pointer; font-size: .7rem; }
 .cl-pref span { padding: 0 4px; line-height: 15px; border-radius: 8px; background: rgba(255, 255, 255, .94); border: 1px solid var(--muted); white-space: nowrap; }
+.cl-soft { font-size: .62rem; }
+.cl-soft span { line-height: 13px; padding: 0 3px; background: rgba(255, 255, 255, .8); border-color: rgba(92, 81, 64, .6); }
 .pref-tip { font-size: .85rem; }
 .leaflet-popup-content { margin: 12px 14px; font-size: .92rem; line-height: 1.55; }
 .detail h3 { margin: 0 2px .3em 0; padding-right: 14px; }
@@ -107,7 +117,26 @@ summary.ctl-title { cursor: pointer; display: list-item; min-height: 28px; }
 .d-basis { margin: .3em 0; padding-left: 1.1em; font-size: .86rem; }
 .d-pos { font-size: .84rem; color: var(--muted); }
 
-/* 地域の概要 */
+/* 地域の概要（PCは地図の上、スマホは地図のすぐ下） */
+.mapcol { display: flex; flex-direction: column; gap: 8px; }
+#summary { order: 2; background: var(--white); border: 1px solid var(--line-soft); border-radius: 10px; padding: 6px 12px 8px; }
+#summary .sum-head h2 { font-size: 1.12rem; }
+.sum-grid { display: grid; gap: 4px; grid-template-columns: minmax(0, 1fr); }
+.sum-block { min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr); align-items: baseline; }
+.sum-block > * { min-width: 0; }
+.sum-block h3 { margin: 2px 0 0; font-size: .78rem; color: var(--muted); font-weight: 700; }
+#summary .counts { display: flex; flex-wrap: wrap; gap: 0 10px; margin: 0; font-size: .92rem; }
+#summary .counts li { border: 0; padding: 1px 0; gap: 4px; }
+#summary .counts li span { flex: none; }
+#summary .counts b { font-size: .98rem; }
+#summary .sum-head h2 { margin: 0; }
+.sum-pos { margin: 0; font-size: .84rem; font-weight: 600; }
+.sum-pos small { font-weight: 400; }
+#summary .m-sub { line-height: 1.45; }
+.m-line { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 8px; }
+.m-line .m-value { font-size: 1.15rem; }
+#summary .m-note { margin: 0; }
+#summary-more .more-stats { margin: 0 0 4px; }
 .side { min-width: 0; }
 .sum-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 2px 10px; }
 .sum-head h2 { margin: 0; font-size: 1.25rem; }
@@ -212,10 +241,17 @@ table.plain { width: 100%; border-collapse: collapse; font-size: .92rem; }
   .ctl-region .ctl-title { font-size: .85rem; }
   .ctl-row select { min-height: 40px; padding: 4px 8px; }
   #map { height: 66vh; }
+  /* 「地図に出すもの」の見出しは読み上げ用に残し、画面では省いて地図を上げる */
+  #view-title { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  #box-view .ctl-row { margin-top: 0; }
 }
 
 @media (min-width: 640px) {
   .figs { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .sum-block { grid-template-columns: 7.6em minmax(0, 1fr); column-gap: 10px; }
+  .sum-block h3 { grid-row: span 3; }
+  .sum-grid { gap: 6px; }
+  .sum-block + .sum-block { border-top: 1px solid var(--line-soft); padding-top: 4px; }
   .src dl { display: grid; grid-template-columns: 6em minmax(0, 1fr); gap: 2px 10px; }
   .src dt { margin-top: 0; }
 }
@@ -226,7 +262,7 @@ table.plain { width: 100%; border-collapse: collapse; font-size: .92rem; }
   .controls { display: flex; flex-wrap: wrap; padding-bottom: 8px; }
   .ctl-region { flex: 1 1 380px; }
   #box-types { flex: 0 0 auto; }
-  #box-layer { flex: 1 1 390px; }
+  #box-view { flex: 1 1 390px; }
   .searchbox { flex: 2 1 150px; }
   #sel-pref, #sel-city { flex: 1 1 92px; }
   .ctl-row select { font-size: .9rem; }
@@ -240,8 +276,10 @@ table.plain { width: 100%; border-collapse: collapse; font-size: .92rem; }
   summary.ctl-title::-webkit-details-marker { display: none; }
   .ctl-now { display: none; }
   .layout { grid-template-columns: minmax(0, 1.75fr) minmax(330px, 1fr); align-items: start; }
-  .mapwrap { height: calc(100vh - 262px); min-height: 500px; }
-  #map { height: 100%; min-height: 0; }
+  .mapcol { height: calc(100vh - 262px); min-height: 560px; }
+  #summary { order: 0; flex: none; }
+  .mapwrap { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
+  #map { flex: 1 1 auto; height: auto; min-height: 0; }
   #legend { flex: none; margin-top: 6px; padding: 5px 10px; }
   .lg-title small { display: inline; margin-left: .6em; }
   .side { height: calc(100vh - 262px); min-height: 500px; overflow-y: auto; padding-right: 8px; }
