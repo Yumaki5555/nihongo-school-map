@@ -3,6 +3,7 @@
 python -I -X utf8 scripts/verify.py
 """
 import json
+import math
 import re
 import sys
 from collections import Counter
@@ -161,12 +162,59 @@ ok("全国表示は数字の丸を使わず、都道府県ごとの校数を色�
 ok("まとめた印は「○校」と単位を付ける", "${fmt(n)}校</span>" in sj, "")
 ok("保存画像に数字入りのまとめた丸がない", "drawBubble" not in img and "drawPill" not in img and "clusterPts" not in img, "")
 gidx = load(DOCS / "data/geo/index.json")
-geo_cities = set()
+geo_cities, geo_name, geo_poly = set(), {}, {}
+
+
+def _ring(r, arcs):
+    out = []
+    for a in r:
+        s = arcs[a] if a >= 0 else arcs[~a][::-1]
+        out += s if not out else s[1:]
+    return out
+
+
+def _inside(x, y, rg):
+    c = False
+    for (x0, y0), (x1, y1) in zip(rg, rg[1:]):
+        if (y0 > y) != (y1 > y) and x < (x1 - x0) * (y - y0) / (y1 - y0) + x0:
+            c = not c
+    return c
+
+
+def _dist_m(x, y, rg):
+    kx, ky, best = math.cos(math.radians(y)) * 111320, 110940, 1e18
+    for (x0, y0), (x1, y1) in zip(rg, rg[1:]):
+        ax, ay, bx, by, px, py = x0 * kx, y0 * ky, x1 * kx, y1 * ky, x * kx, y * ky
+        dx, dy = bx - ax, by - ay
+        u = 0 if dx == dy == 0 else max(0, min(1, ((px - ax) * dx + (py - ay) * dy) / (dx * dx + dy * dy)))
+        best = min(best, math.hypot(px - ax - u * dx, py - ay - u * dy))
+    return best
+
+
 for c in sorted(gidx["prefs"]):
-    geo_cities |= {x["c"] for x in load(DOCS / f"data/geo/p{c}.json")["cities"]}
+    gd = load(DOCS / f"data/geo/p{c}.json")
+    for x in gd["cities"]:
+        geo_cities.add(x["c"])
+        geo_name[x["c"]] = x["n"]
+        geo_poly[x["c"]] = [[_ring(r, gd["arcs"]) for r in poly] for poly in x["r"]]
 ok("画像用の地図データが47都道府県分ある", sorted(gidx["prefs"]) == sorted(codes), str(len(gidx["prefs"])))
 missing = sorted({s["cc"] for s in schools if s.get("cc")} - geo_cities)
 ok("学校のある市区町村はすべて境界がある", not missing, str(missing[:5]))
+# 市区町村の番号と名前が境界データと合う（名前の前の郡名は除いて比べる）。2026-11-08 環太平洋大学の番号違いを直したときに追加
+bad_name = sorted({(s["cc"], s["c"]) for s in schools if s.get("cc") and not s["c"].endswith(geo_name.get(s["cc"], "(境界なし)"))})
+ok("学校の市区町村の番号と名前が境界データと一致", not bad_name, str(bad_name[:5]))
+# 点が自分の市区町村から大きく外れていない（境界は簡略化しているので、1km未満の外れは許す。48校は線の近くで外に出るが、国土地理院の逆ジオコーダで正しい市区町村の中と確認済み）
+far_pts = []
+for s in schools:
+    if s.get("la") is None or not s.get("cc"):
+        continue
+    P = geo_poly[s["cc"]]
+    if any(_inside(s["ln"], s["la"], q[0]) and not any(_inside(s["ln"], s["la"], h) for h in q[1:]) for q in P):
+        continue
+    d = min(_dist_m(s["ln"], s["la"], q[0]) for q in P)
+    if d >= 1000:
+        far_pts.append((s["i"], round(d)))
+ok("学校の点が自分の市区町村から1km以上外れていない", not far_pts, str(far_pts[:5]))
 ok("地域の画像は境界・駅を描き、地図が作れないときはグラフにする", "cityPath" in img and "stations" in img and "drawChart" in img and "chartSpec" in sj, "")
 ok("市区町村の画像の都道府県の人数は「参考：○○全体」と分け、標準では入れない", "参考：${m.area}全体" in img and '$("img-ref").checked' in sj and 'id="img-ref"' in ih, "")
 ok("画像に鉄道・境界の出典（国土数値情報）がある", "鉄道データ 2024年" in img and "KsjTmplt-N02-2024" in sh_pre, "")
