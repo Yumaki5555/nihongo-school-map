@@ -21,7 +21,7 @@
 <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="stylesheet" href="vendor/leaflet.css"><link rel="stylesheet" href="vendor/markercluster-MarkerCluster.css">
-<link rel="stylesheet" href="style.css?v=965eecd7">
+<link rel="stylesheet" href="style.css?v=44a5486b">
 <style>nihon-site-nav:not(:defined){display:block;min-height:45px;padding:0 16px;background:#f4f6f6;border-bottom:1px solid #d5dcde;font:14px/44px system-ui,sans-serif}@media print{nihon-site-nav{display:none!important}}</style>
 </head>
 <body data-page="index" data-site="https://yumaki5555.github.io/nihongo-school-map/">
@@ -57,9 +57,8 @@
     <span class="ctl-title" id="view-title">地図に出すもの</span>
     <div class="ctl-row">
       <div class="seg" id="seg-view" role="group" aria-labelledby="view-title">
-        <button type="button" data-view="place" aria-pressed="true">学校の場所</button>
-        <button type="button" data-view="stats" aria-pressed="false">人数の分布</button>
-        <button type="button" data-view="both" aria-pressed="false">両方</button>
+        <button type="button" data-view="place" aria-pressed="true">学校の数と場所</button>
+        <button type="button" data-view="stats" aria-pressed="false">人数の分布（国の統計）</button>
       </div>
       <select id="sel-layer" aria-label="色分けする人数（国の統計）" hidden></select>
       <select id="sel-variant" aria-label="人数の内訳" hidden></select>
@@ -106,10 +105,11 @@
   <h2 id="img-title">画像を保存</h2>
   <fieldset class="img-kinds" id="img-kinds">
     <legend>画像の種類（1600×900）</legend>
-    <label><input type="radio" name="img-kind" value="schools"><span><b>A 全国の学校分布</b><small>都道府県ごとの校数と、学校の種類ごとの全国の校数</small></span></label>
+    <label><input type="radio" name="img-kind" value="schools"><span><b>A 全国の学校分布</b><small>都道府県ごとの校数の色分けと、学校の種類ごとの全国の校数</small></span></label>
     <label><input type="radio" name="img-kind" value="stats"><span><b>B 全国の人数分布</b><small id="img-kind-stats"></small></span></label>
     <label><input type="radio" name="img-kind" value="region"><span><b>C 選択した地域</b><small id="img-kind-region"></small></span></label>
   </fieldset>
+  <label class="check img-ref" id="img-ref-box" hidden><input type="checkbox" id="img-ref"><span id="img-ref-label">参考として都道府県全体の人数（国の統計）を入れる</span></label>
   <p class="fine" id="img-status" aria-live="polite"></p>
   <img id="img-preview" alt="保存する画像のプレビュー" hidden>
   <div class="img-acts"><a class="btn primary" id="img-save" hidden>PNGを保存</a><button type="button" class="btn" id="img-close">閉じる</button></div>
@@ -134,6 +134,6 @@
   <p>国の公開資料をもとに作っています。国の機関が運営するサイトではありません。確認できない情報は推測で埋めません。<a href="sources.html">出典・利用条件</a>／<a href="https://docs.google.com/forms/d/e/1FAIpQLSeMRMh8OCG1ZClms-6yE_TXk7xcAizr5k9-E5q6iiOx2r2xMA/viewform" target="_blank" rel="noopener">情報の訂正・お問い合わせ</a></p>
   <p class="muted">最終確認：2026-11-07</p>
 </footer>
-<script src="vendor/leaflet.js"></script><script src="vendor/markercluster-leaflet.markercluster.js"></script><script src="map-image.js?v=f97868ed"></script><script src="site.js?v=110f2979"></script>
+<script src="vendor/leaflet.js"></script><script src="vendor/markercluster-leaflet.markercluster.js"></script><script src="map-image.js?v=52293509"></script><script src="site.js?v=a2c40f3e"></script>
 </body>
 </html>

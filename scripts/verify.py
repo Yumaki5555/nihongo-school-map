@@ -138,7 +138,8 @@ ok("保存画像に出典とクレジットがある", "国土数値情報" in i
 # ---- 地図の表示（2026-11-07 改善指示書の第1・2段階） ----
 sj = (DOCS / "site.js").read_text("utf8")
 ih = (DOCS / "index.html").read_text("utf8")
-ok("地図に出すものは3種類（学校の場所・人数の分布・両方）", all(f'data-view="{k}"' in ih for k in ("place", "stats", "both")) and "aria-pressed" in ih, "")
+sh_pre = (DOCS / "sources.html").read_text("utf8")
+ok("地図に出すものは2種類（学校の数と場所・人数の分布）で、同時には出さない", all(f'data-view="{k}"' in ih for k in ("place", "stats")) and 'data-view="both"' not in ih and "aria-pressed" in ih, "")
 ok("位置のない学校も公開データに残す（消さない）", sum("la" not in s for s in schools) == sum(s["lat"] is None for s in master), "")
 ok("登録校数と地図に位置を表示できる校数を分けて出す", "地図に位置を表示できる" in sj, "")
 ok("大学・専門学校は本部・本校の所在地と明記", "本部・本校の所在地" in sj, "")
@@ -154,6 +155,21 @@ ok("全国の投稿文は指示書の文のまま", "あなたの地域に、日
 ok("投稿文のURLが公開サイト", 'data-site="https://yumaki5555.github.io/nihongo-school-map/"' in ih, "")
 ok("画像が自動で添付されないと案内する", "画像は自動では添付されません。保存してからXで添付してください。" in ih, "")
 ok("地域の投稿文はXの文字数に収める", "X_LIMIT = 280" in sj and "fitsX" in sj, "")
+
+# ---- 地図・X画像の見やすさ（2026-11-08 視認性改善） ----
+ok("全国表示は数字の丸を使わず、都道府県ごとの校数を色で表す", "色が濃いほど学校数が多い" in sj and "renderBubbles" not in sj and "cl-pref" not in sj, "")
+ok("まとめた印は「○校」と単位を付ける", "${fmt(n)}校</span>" in sj, "")
+ok("保存画像に数字入りのまとめた丸がない", "drawBubble" not in img and "drawPill" not in img and "clusterPts" not in img, "")
+gidx = load(DOCS / "data/geo/index.json")
+geo_cities = set()
+for c in sorted(gidx["prefs"]):
+    geo_cities |= {x["c"] for x in load(DOCS / f"data/geo/p{c}.json")["cities"]}
+ok("画像用の地図データが47都道府県分ある", sorted(gidx["prefs"]) == sorted(codes), str(len(gidx["prefs"])))
+missing = sorted({s["cc"] for s in schools if s.get("cc")} - geo_cities)
+ok("学校のある市区町村はすべて境界がある", not missing, str(missing[:5]))
+ok("地域の画像は境界・駅を描き、地図が作れないときはグラフにする", "cityPath" in img and "stations" in img and "drawChart" in img and "chartSpec" in sj, "")
+ok("市区町村の画像の都道府県の人数は「参考：○○全体」と分け、標準では入れない", "参考：${m.area}全体" in img and '$("img-ref").checked' in sj and 'id="img-ref"' in ih, "")
+ok("画像に鉄道・境界の出典（国土数値情報）がある", "鉄道データ 2024年" in img and "KsjTmplt-N02-2024" in sh_pre, "")
 
 # ---- 人口あたり・2県比較（改善指示書の第4段階） ----
 rates = stats.get("rates", [])

@@ -22,9 +22,8 @@
     <span class="ctl-title" id="view-title">地図に出すもの</span>
     <div class="ctl-row">
       <div class="seg" id="seg-view" role="group" aria-labelledby="view-title">
-        <button type="button" data-view="place" aria-pressed="true">学校の場所</button>
-        <button type="button" data-view="stats" aria-pressed="false">人数の分布</button>
-        <button type="button" data-view="both" aria-pressed="false">両方</button>
+        <button type="button" data-view="place" aria-pressed="true">学校の数と場所</button>
+        <button type="button" data-view="stats" aria-pressed="false">人数の分布（国の統計）</button>
       </div>
       <select id="sel-layer" aria-label="色分けする人数（国の統計）" hidden></select>
       <select id="sel-variant" aria-label="人数の内訳" hidden></select>
@@ -71,10 +70,11 @@
   <h2 id="img-title">画像を保存</h2>
   <fieldset class="img-kinds" id="img-kinds">
     <legend>画像の種類（1600×900）</legend>
-    <label><input type="radio" name="img-kind" value="schools"><span><b>A 全国の学校分布</b><small>都道府県ごとの校数と、学校の種類ごとの全国の校数</small></span></label>
+    <label><input type="radio" name="img-kind" value="schools"><span><b>A 全国の学校分布</b><small>都道府県ごとの校数の色分けと、学校の種類ごとの全国の校数</small></span></label>
     <label><input type="radio" name="img-kind" value="stats"><span><b>B 全国の人数分布</b><small id="img-kind-stats"></small></span></label>
     <label><input type="radio" name="img-kind" value="region"><span><b>C 選択した地域</b><small id="img-kind-region"></small></span></label>
   </fieldset>
+  <label class="check img-ref" id="img-ref-box" hidden><input type="checkbox" id="img-ref"><span id="img-ref-label">参考として都道府県全体の人数（国の統計）を入れる</span></label>
   <p class="fine" id="img-status" aria-live="polite"></p>
   <img id="img-preview" alt="保存する画像のプレビュー" hidden>
   <div class="img-acts"><a class="btn primary" id="img-save" hidden>PNGを保存</a><button type="button" class="btn" id="img-close">閉じる</button></div>

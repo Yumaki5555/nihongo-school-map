@@ -1,23 +1,28 @@
-/* 保存用の画像（PNG 1600×900）を端末の中だけで描く。3種類から選ぶ：
-   schools＝全国の学校分布／stats＝全国の人数分布／region＝選択した地域。
-   背景の地図タイルは使わず、都道府県の境界（国土数値情報を加工）と学校の点から作る。
-   通信はしない。数字はすべて site.js が画面と同じデータから渡す。
-   スマホの画面で縮めて見ても読めるよう、文字は大きめにする（いちばん小さい出典でも17px）。 */
+/* 保存用の画像（PNG 1600×900）を端末の中だけで描く。種類：
+   schools＝全国の学校分布（都道府県ごとの校数の色分け）／stats＝全国の人数分布（国の統計）／
+   region＝選択した地域（市区町村の境界・線路・駅・地名と学校の点）／chart＝地域の地図データが読めないときの校数のグラフ。
+   地図タイルは使わない。境界・線路・駅は国土数値情報（国土交通省）を加工したデータで、site.js が同じサイトから読み込んで渡す。
+   外部への通信はしない。数字はすべて site.js が画面と同じデータから渡す。
+   スマホで縮めて見ても読めるよう、文字は大きめにする（いちばん小さい出典でも17px）。 */
 window.MapImage = (function () {
   "use strict";
   const W = 1600, H = 900;
-  // 全国の2種類は日本列島に合わせて地図を細く、説明の欄を広くする
+  const TOP = 168, BOT = 806; // 地図と説明の欄の上端・下端
   const LAYOUT = {
-    nation: { M: { x: 24, y: 150, w: 800, h: 620 }, P: { x: 856, y: 150, w: 720, h: 620 } },
-    region: { M: { x: 24, y: 150, w: 1010, h: 620 }, P: { x: 1062, y: 150, w: 514, h: 620 } },
+    nation: { M: { x: 24, y: TOP, w: 780, h: BOT - TOP }, P: { x: 838, y: TOP, w: 738, h: BOT - TOP } },
+    region: { M: { x: 24, y: TOP, w: 1010, h: BOT - TOP }, P: { x: 1066, y: TOP, w: 510, h: BOT - TOP } },
   };
   const NATION = { n: 45.8, s: 30.0, w: 128.2, e: 146.4 };
   const OKINAWA = { n: 28.6, s: 24.0, w: 122.7, e: 131.4 };
   const OKI = "47";
-  const MAX_SCALE = Math.pow(2, 14); // 学校が1校だけの市区町村でも拡大しすぎない（サイトの地図と同じ上限）
-  const VEIL = 0.38; // 選んだ地域の外にかける白い膜（サイトの地図と同じ）
+  const MAX_SCALE = Math.pow(2, 15);
   const FONT = '"Yu Gothic UI","Hiragino Sans","Meiryo","Noto Sans CJK JP","Noto Sans JP",system-ui,sans-serif';
-  const C = { bg: "#FFFDF6", ink: "#352D20", muted: "#5C5140", brand: "#79591F", accent: "#E5C66E", line: "#D5BA79", soft: "#FFF5D9", sea: "#D9E6EF", land: "#F6F1E4", border: "#8A7A55", white: "#FFFFFF" };
+  const C = { bg: "#FFFDF6", ink: "#352D20", muted: "#5C5140", brand: "#79591F", accent: "#E5C66E", line: "#D5BA79", soft: "#FFF5D9", sea: "#D9E6EF", land: "#F6F1E4", border: "#8A7A55", white: "#FFFFFF", rail: "#9C9384", city: "#B3A483", bar: "#4580B5" };
+  // 地図の出典（国土交通省の指示どおり、加工したことを書く）
+  const CREDIT = {
+    border: "境界：国土数値情報（行政区域データ）国土交通省を加工",
+    region: "地図：国土数値情報（行政区域データ 2021年・鉄道データ 2024年）国土交通省を加工／位置：位置参照情報 国土交通省を加工",
+  };
   const fmt = (n) => Number(n).toLocaleString("ja-JP");
   const font = (px, bold) => `${bold ? 700 : 500} ${px}px ${FONT}`;
 
@@ -39,14 +44,6 @@ window.MapImage = (function () {
     return lines;
   }
 
-  // 折り返して書く。bottom を超える行は書かない。次の行の位置を返す
-  function drawWrapped(ctx, text, x, y, maxW, lh, maxLines, bottom) {
-    const room = bottom ? Math.max(0, Math.floor((bottom - y) / lh) + 1) : maxLines;
-    const lines = wrap(ctx, text, maxW).slice(0, Math.min(maxLines, room));
-    lines.forEach((l, i) => ctx.fillText(l, x, y + i * lh));
-    return y + lines.length * lh;
-  }
-
   // 注意書き：全文が bottom までに入る大きさで書く（17pxでも入らなければ書かない）。次の行の位置を返す
   function drawNote(ctx, text, x, y, maxW, px, bottom, bold) {
     for (let p = px; p >= 17; p--) {
@@ -63,49 +60,28 @@ window.MapImage = (function () {
     ctx.lineWidth = 1; ctx.strokeStyle = C.line; ctx.stroke();
   }
 
+  // 白い縁取りの文字（地図の上の地名・駅名）
+  function haloText(ctx, text, x, y, px, bold, color) {
+    ctx.font = font(px, bold);
+    ctx.lineJoin = "round"; ctx.lineWidth = Math.max(4, px * 0.28); ctx.strokeStyle = "rgba(255,255,255,.94)";
+    ctx.strokeText(text, x, y);
+    ctx.fillStyle = color; ctx.fillText(text, x, y);
+  }
+
   function drawShape(ctx, g, x, y, size, rough) {
     const s = size / 2;
     ctx.beginPath();
     if (g.shape === "circle") ctx.arc(x, y, s * 0.82, 0, Math.PI * 2);
     else if (g.shape === "square") ctx.rect(x - s * 0.75, y - s * 0.75, s * 1.5, s * 1.5);
     else { ctx.moveTo(x, y - s); ctx.lineTo(x + s, y); ctx.lineTo(x, y + s); ctx.lineTo(x - s, y); ctx.closePath(); }
+    const lw = Math.max(1.4, size / 9);
     if (rough) {
       ctx.fillStyle = C.white; ctx.fill();
-      ctx.lineWidth = 3.5; ctx.strokeStyle = g.color; ctx.stroke();
+      ctx.lineWidth = lw * 1.4; ctx.strokeStyle = g.color; ctx.stroke();
     } else {
       ctx.fillStyle = g.color; ctx.fill();
-      ctx.lineWidth = 2.5; ctx.strokeStyle = C.white; ctx.stroke();
+      ctx.lineWidth = lw; ctx.strokeStyle = C.white; ctx.stroke();
     }
-  }
-
-  function drawBubble(ctx, x, y, r, label, px) {
-    ctx.beginPath();
-    ctx.arc(x, y, r, 0, Math.PI * 2);
-    ctx.fillStyle = "rgba(255,255,255,.95)"; ctx.fill();
-    ctx.lineWidth = 2.5; ctx.strokeStyle = C.muted; ctx.stroke();
-    ctx.fillStyle = C.ink; ctx.font = font(px, true);
-    ctx.textAlign = "center"; ctx.textBaseline = "middle";
-    ctx.fillText(label, x, y + 1);
-    ctx.textAlign = "left"; ctx.textBaseline = "alphabetic";
-  }
-
-  // 都道府県ごとの校数のラベル
-  function drawPill(ctx, x, y, label, px) {
-    ctx.font = font(px, true);
-    const w = ctx.measureText(label).width + 14, h = px + 10, r = h / 2;
-    ctx.beginPath();
-    ctx.moveTo(x - w / 2 + r, y - r);
-    ctx.lineTo(x + w / 2 - r, y - r);
-    ctx.arc(x + w / 2 - r, y, r, -Math.PI / 2, Math.PI / 2);
-    ctx.lineTo(x - w / 2 + r, y + r);
-    ctx.arc(x - w / 2 + r, y, r, Math.PI / 2, Math.PI * 1.5);
-    ctx.closePath();
-    ctx.fillStyle = "rgba(255,255,255,.95)"; ctx.fill();
-    ctx.lineWidth = 1.8; ctx.strokeStyle = C.muted; ctx.stroke();
-    ctx.fillStyle = C.ink;
-    ctx.textAlign = "center"; ctx.textBaseline = "middle";
-    ctx.fillText(label, x, y + 1);
-    ctx.textAlign = "left"; ctx.textBaseline = "alphabetic";
   }
 
   // 緯度経度の範囲 f を枠 R にちょうど収める変換
@@ -115,7 +91,9 @@ window.MapImage = (function () {
     const nw = world(f.n, f.w), se = world(f.s, f.e);
     const k = Math.min(R.w / Math.max(se.x - nw.x, 1e-9), R.h / Math.max(se.y - nw.y, 1e-9), MAX_SCALE);
     const cx = (nw.x + se.x) / 2, cy = (nw.y + se.y) / 2;
-    return { k, px: (la, ln) => { const p = world(la, ln); return [R.x + R.w / 2 + (p.x - cx) * k, R.y + R.h / 2 + (p.y - cy) * k]; } };
+    const px = (la, ln) => { const p = world(la, ln); return [R.x + R.w / 2 + (p.x - cx) * k, R.y + R.h / 2 + (p.y - cy) * k]; };
+    const ll = (x, y) => crs.pointToLatLng(L.point(cx + (x - R.x - R.w / 2) / k, cy + (y - R.y - R.h / 2) / k), 0);
+    return { k, px, ll };
   }
 
   function path(ctx, f, px) {
@@ -127,15 +105,14 @@ window.MapImage = (function () {
     }));
   }
 
-  // 都道府県を描く。opt.fill＝人数の色、opt.veil＝選んだ地域の外を白く薄める
+  // 都道府県を描く。opt.fill＝色分け
   function drawLand(ctx, spec, px, opt) {
     spec.geo.features.forEach((f) => {
       const code = f.properties.code;
       path(ctx, f, px);
       ctx.fillStyle = C.land; ctx.fill("evenodd");
       if (opt.fill) { ctx.globalAlpha = opt.fillOpacity; ctx.fillStyle = opt.fill(code); ctx.fill("evenodd"); ctx.globalAlpha = 1; }
-      if (opt.veil && code !== opt.selected) { ctx.globalAlpha = opt.veil; ctx.fillStyle = C.white; ctx.fill("evenodd"); ctx.globalAlpha = 1; }
-      ctx.lineWidth = 1.2; ctx.strokeStyle = C.border; ctx.stroke();
+      ctx.lineWidth = 1.3; ctx.strokeStyle = C.border; ctx.stroke();
     });
     if (opt.selected) {
       const f = spec.geo.features.find((x) => x.properties.code === opt.selected);
@@ -144,115 +121,242 @@ window.MapImage = (function () {
   }
 
   // 枠の中だけに描く
-  function frame(ctx, R, draw) {
+  function frame(ctx, R, draw, bg) {
     ctx.save();
     ctx.beginPath(); ctx.rect(R.x, R.y, R.w, R.h); ctx.clip();
-    ctx.fillStyle = C.sea; ctx.fillRect(R.x, R.y, R.w, R.h);
+    ctx.fillStyle = bg || C.sea; ctx.fillRect(R.x, R.y, R.w, R.h);
     draw();
     ctx.restore();
     ctx.lineWidth = 1.5; ctx.strokeStyle = C.line; ctx.strokeRect(R.x, R.y, R.w, R.h);
   }
 
-  function pillItems(spec, px, codes) {
-    return codes.map((code) => {
-      const a = px(spec.rep[code][0], spec.rep[code][1]);
-      const n = spec.counts[code];
-      return { code, n, ax: a[0], ay: a[1], r: n < 100 ? 18 : n < 1000 ? 22 : 26 };
-    });
-  }
-
-  // 全国の地図（A・B）。沖縄県は左上の枠に入れる
+  // 全国の地図（A・B）。沖縄県は左上の枠に入れる。数字の丸は使わず、色の濃さだけで表す
   function drawNation(ctx, spec, M) {
     const opt = { fill: spec.fill, fillOpacity: spec.fillOpacity, selected: spec.selected };
     const I = { x: M.x + 12, y: M.y + 12, w: 300, h: 176 };
     frame(ctx, M, () => {
-      const main = projector(NATION, M);
-      drawLand(ctx, spec, main.px, opt);
-      if (spec.counts) {
-        const items = pillItems(spec, main.px, Object.keys(spec.counts).filter((c) => c !== OKI));
-        spec.relax(items, 2);
-        items.forEach((i) => {
-          if (Math.hypot(i.x - i.ax, i.y - i.ay) > 10) {
-            ctx.beginPath(); ctx.moveTo(i.ax, i.ay); ctx.lineTo(i.x, i.y);
-            ctx.lineWidth = 1.4; ctx.strokeStyle = C.muted; ctx.stroke();
-          }
-        });
-        items.forEach((i) => drawPill(ctx, i.x, i.y, fmt(i.n), 20));
-      }
+      drawLand(ctx, spec, projector(NATION, M).px, opt);
       frame(ctx, I, () => {
-        const oki = projector(OKINAWA, I);
-        drawLand(ctx, spec, oki.px, Object.assign({}, opt, { selWidth: 2.5 }));
-        if (spec.counts && spec.counts[OKI]) {
-          const a = oki.px(spec.rep[OKI][0], spec.rep[OKI][1]);
-          drawPill(ctx, a[0], a[1], fmt(spec.counts[OKI]), 20);
-        }
+        drawLand(ctx, spec, projector(OKINAWA, I).px, Object.assign({}, opt, { selWidth: 2.5 }));
         ctx.fillStyle = C.ink; ctx.font = font(22, true);
         ctx.fillText("沖縄県", I.x + 10, I.y + 30);
       });
     });
   }
 
-  // 近い点をまとめる（サイトの地図のまとめ方に近い半径）
-  function clusterPts(list, R) {
-    const groups = [];
-    list.forEach((q) => {
-      let near = null, best = R;
-      groups.forEach((g) => { const d = Math.hypot(g.x - q.x, g.y - q.y); if (d < best) { best = d; near = g; } });
-      if (near) { near.items.push(q.p); near.sx += q.x; near.sy += q.y; } else groups.push({ x: q.x, y: q.y, sx: q.x, sy: q.y, items: [q.p] });
-    });
-    return groups;
+  // ---- 選択した地域（C） ----
+  // 市区町村の形：線（arc）の番号から輪を組み立てる
+  function cityPath(ctx, c, arcs, px) {
+    ctx.beginPath();
+    c.r.forEach((poly) => poly.forEach((ring) => {
+      let first = true;
+      ring.forEach((a) => {
+        const seq = a >= 0 ? arcs[a] : arcs[~a].slice().reverse();
+        seq.forEach((p, i) => {
+          if (i === 0 && !first) return;
+          const [x, y] = px(p[1], p[0]);
+          if (first) { ctx.moveTo(x, y); first = false; } else ctx.lineTo(x, y);
+        });
+      });
+      ctx.closePath();
+    }));
   }
 
-  // 選んだ地域の地図（C）。地域の外の学校は薄く描く。地図の外に出た地域内の学校の数を返す
+  function strokeArc(ctx, pts, px) {
+    pts.forEach((p, i) => { const [x, y] = px(p[1], p[0]); if (i) ctx.lineTo(x, y); else ctx.moveTo(x, y); });
+  }
+
+  // 点が多い所に文字を重ねないよう、候補の位置から点のいちばん少ない所を選ぶ（ほかの文字と重なる所は使わない）
+  function placeLabel(ctx, taken, pts, M, text, px, bold, ax, ay, offsets) {
+    ctx.font = font(px, bold);
+    const w = ctx.measureText(text).width, h = px;
+    let best = null;
+    offsets.forEach(([dx, dy, align]) => {
+      const x = align === "right" ? ax + dx - w : align === "center" ? ax + dx - w / 2 : ax + dx;
+      const y = ay + dy;
+      const r = { x: x - 4, y: y - h - 2, w: w + 8, h: h + 8 };
+      if (r.x < M.x + 4 || r.x + r.w > M.x + M.w - 4 || r.y < M.y + 4 || r.y + r.h > M.y + M.h - 4) return;
+      if (taken.some((t) => r.x < t.x + t.w && t.x < r.x + r.w && r.y < t.y + t.h && t.y < r.y + r.h)) return;
+      const cover = pts.filter((q) => q.x > r.x && q.x < r.x + r.w && q.y > r.y && q.y < r.y + r.h).length;
+      if (!best || cover < best.cover) best = { x, y, r, cover };
+    });
+    if (best) taken.push(best.r);
+    return best;
+  }
+
+  // 縮尺の目盛りの長さ（切りのよい距離）
+  function scaleBar(pr, M) {
+    const mid = pr.ll(M.x + M.w / 2, M.y + M.h / 2);
+    const mpp = (40075016.686 * Math.cos((mid.lat * Math.PI) / 180)) / (256 * pr.k);
+    const target = mpp * 150;
+    const p = Math.pow(10, Math.floor(Math.log10(target)));
+    const m = [1, 2, 5, 10].map((x) => x * p).filter((x) => x <= target * 1.4).pop();
+    return { px: m / mpp, label: m >= 1000 ? `${fmt(m / 1000)}km` : `${fmt(m)}m` };
+  }
+
+  // 地域の地図。地域の外の学校は描かない。地図の外に出た地域内の学校の数を返す
   function drawRegion(ctx, spec, M) {
     const pr = projector(spec.bounds, M);
-    const zoom = Math.log2(pr.k);
-    const R = zoom < 12 ? 66 : zoom < 14 ? 40 : 14;
+    const cityMode = !!spec.city;
+    const own = spec.local[0];
+    const selCity = cityMode ? own.cities.find((c) => c.c === spec.city) : null;
+    const detailed = new Set(spec.local.map((f) => f.code));
+    // 学校の点（同じ位置の学校は少しずつずらして、1校1つの印にする）
+    const size = cityMode ? 20 : 13;
     let outside = 0;
-    const sets = { out: [], in: [] };
+    const pts = [];
+    const seen = {};
     spec.points.forEach((p) => {
-      const [x, y] = pr.px(p.la, p.ln);
-      const inside = x >= M.x && x <= M.x + M.w && y >= M.y && y <= M.y + M.h;
-      if (p.r && !inside) outside++;
-      if (x < M.x - 40 || x > M.x + M.w + 40 || y < M.y - 40 || y > M.y + M.h + 40) return;
-      sets[p.r ? "in" : "out"].push({ x, y, p });
+      let [x, y] = pr.px(p.la, p.ln);
+      if (x < M.x || x > M.x + M.w || y < M.y || y > M.y + M.h) { outside++; return; }
+      const key = Math.round(x / 3) + ":" + Math.round(y / 3);
+      const n = seen[key] = (seen[key] || 0) + 1;
+      if (n > 1) { const a = n * 2.4, r = size * 0.45 * Math.sqrt(n - 1); x += Math.cos(a) * r; y += Math.sin(a) * r; }
+      pts.push({ x, y, p });
     });
     frame(ctx, M, () => {
-      drawLand(ctx, spec, pr.px, { selected: spec.selected, veil: VEIL });
-      const draw = (list, alpha) => {
-        ctx.globalAlpha = alpha;
-        const groups = clusterPts(list, R);
-        groups.filter((g) => g.items.length === 1).forEach((g) => { const p = g.items[0]; drawShape(ctx, spec.groups[p.g], g.x, g.y, 28, p.rough); });
-        groups.filter((g) => g.items.length > 1).forEach((g) => {
-          const n = g.items.length;
-          drawBubble(ctx, g.sx / n, g.sy / n, n < 10 ? 19 : n < 100 ? 22 : n < 1000 ? 26 : 30, fmt(n), 20);
-        });
-        ctx.globalAlpha = 1;
-      };
-      draw(sets.out, 0.35);
-      draw(sets.in, 1);
-      // 点の見方（点がいちばん少ない角に置く）
-      const lines = [["rough", "白抜き＝町名の代表点"], ["bubble", "数字＝まとめた学校の数"]];
-      if (sets.out.length) lines.push(["faint", "薄い色＝ほかの地域の学校"]);
-      ctx.font = font(21);
-      const bw = 58 + Math.max(...lines.map((l) => ctx.measureText(l[1]).width)) + 16, bh = lines.length * 34 + 14;
-      const corners = [[M.x + 10, M.y + M.h - bh - 10], [M.x + M.w - bw - 10, M.y + M.h - bh - 10], [M.x + 10, M.y + 10], [M.x + M.w - bw - 10, M.y + 10]];
-      const busy = (c) => sets.in.concat(sets.out).filter((q) => q.x > c[0] - 20 && q.x < c[0] + bw + 20 && q.y > c[1] - 20 && q.y < c[1] + bh + 20).length;
-      const [bx, by] = corners.reduce((a, c) => (busy(c) < busy(a) ? c : a));
-      ctx.fillStyle = "rgba(255,255,255,.92)"; ctx.fillRect(bx, by, bw, bh);
-      ctx.lineWidth = 1.2; ctx.strokeStyle = C.line; ctx.strokeRect(bx, by, bw, bh);
-      lines.forEach((l, i) => {
-        const cy = by + 26 + i * 34, cx = bx + 28;
-        if (l[0] === "rough") drawShape(ctx, spec.groups.jp, cx, cy - 7, 24, true);
-        else if (l[0] === "bubble") drawBubble(ctx, cx, cy - 7, 15, "12", 15);
-        else { ctx.globalAlpha = 0.35; drawShape(ctx, spec.groups.jp, cx, cy - 7, 24, false); ctx.globalAlpha = 1; }
-        ctx.fillStyle = C.ink; ctx.font = font(21);
-        ctx.fillText(l[1], bx + 58, cy);
+      // 1) 地図データのない県は都道府県の形で（遠くの県だけなので粗くても目立たない）
+      spec.geo.features.forEach((f) => {
+        if (detailed.has(f.properties.code)) return;
+        path(ctx, f, pr.px);
+        ctx.fillStyle = C.land; ctx.fill("evenodd");
+        ctx.globalAlpha = 0.5; ctx.fillStyle = C.white; ctx.fill("evenodd"); ctx.globalAlpha = 1;
+        ctx.lineWidth = 1.6; ctx.strokeStyle = C.border; ctx.stroke();
       });
+      // 2) 市区町村（選んだ地域の外は白く薄める）
+      spec.local.forEach((file) => file.cities.forEach((c) => {
+        cityPath(ctx, c, file.arcs, pr.px);
+        ctx.fillStyle = C.land; ctx.fill("evenodd");
+        const inside = cityMode ? c.c === spec.city : file.code === spec.pref;
+        if (!inside) { ctx.globalAlpha = 0.5; ctx.fillStyle = C.white; ctx.fill("evenodd"); ctx.globalAlpha = 1; }
+      }));
+      // 3) 線路
+      const rw = cityMode ? 2.2 : 1.4;
+      const drawn = new Set();
+      spec.local.forEach((file) => file.rails.forEach((r) => {
+        const key = r.p[0].join() + r.p[r.p.length - 1].join();
+        if (drawn.has(key)) return;
+        drawn.add(key);
+        ctx.beginPath(); strokeArc(ctx, r.p, pr.px);
+        ctx.lineWidth = r.k ? rw + 0.8 : rw; ctx.strokeStyle = C.rail; ctx.stroke();
+      }));
+      // 4) 境界線（市区町村の境は細く、県の外周は太く）
+      spec.local.forEach((file) => {
+        [0, 1].forEach((k) => {
+          ctx.beginPath();
+          file.lines.forEach(([a, kk]) => { if (kk === k) strokeArc(ctx, file.arcs[a], pr.px); });
+          ctx.lineWidth = k ? 2.2 : cityMode ? 1.6 : 1.1; ctx.strokeStyle = k ? C.border : C.city; ctx.stroke();
+        });
+      });
+      // 5) 選んだ地域の境界を太く
+      ctx.lineJoin = "round";
+      if (selCity) { cityPath(ctx, selCity, own.arcs, pr.px); ctx.lineWidth = 5; ctx.strokeStyle = C.ink; ctx.stroke(); }
+      else {
+        ctx.beginPath();
+        own.lines.forEach(([a, k]) => { if (k) strokeArc(ctx, own.arcs[a], pr.px); });
+        ctx.lineWidth = 4.5; ctx.strokeStyle = C.ink; ctx.stroke();
+      }
+      // 6) 学校の点
+      pts.forEach((q) => drawShape(ctx, spec.groups[q.p.g], q.x, q.y, size, q.p.rough));
+      // 7) 地名と駅名（点の少ない位置に置く）
+      const taken = [];
+      const legendBox = legendSize(ctx, spec, cityMode);
+      const corner = bestCorner(M, legendBox, pts);
+      taken.push({ x: corner[0], y: corner[1], w: legendBox.w, h: legendBox.h });
+      const around = (d) => [[0, d * 0.4, "center"], [0, -d * 1.3, "center"], [0, d * 2.1, "center"], [d * 1.6, d * 0.4, "left"], [-d * 1.6, d * 0.4, "right"]];
+      const labels = [];
+      const cities = [];
+      spec.local.forEach((file) => file.cities.forEach((c) => cities.push(c)));
+      if (cityMode) {
+        labels.push({ text: selCity ? selCity.n : "", la: selCity ? selCity.lp[0] : 0, ln: selCity ? selCity.lp[1] : 0, px: 34, color: C.ink });
+        cities.filter((c) => c !== selCity).forEach((c) => labels.push({ text: c.n, la: c.lp[0], ln: c.lp[1], px: 24, color: C.muted }));
+      } else {
+        const counts = spec.cityCounts;
+        cities.filter((c) => counts[c.c]).sort((a, b) => counts[b.c] - counts[a.c]).slice(0, 10)
+          .forEach((c) => labels.push({ text: c.n, la: c.lp[0], ln: c.lp[1], px: 24, color: C.ink }));
+      }
+      const placed = [];
+      labels.forEach((l) => {
+        if (!l.text) return;
+        const [x, y] = pr.px(l.la, l.ln);
+        const b = placeLabel(ctx, taken, pts, M, l.text, l.px, true, x, y, around(l.px * 0.5));
+        if (b) placed.push(Object.assign(b, l));
+      });
+      // 駅：乗り入れる路線の多い順（市区町村の画像では、その市区町村の中の駅を先に）
+      const stations = [];
+      const seenSt = new Set();
+      spec.local.forEach((file) => file.stations.forEach((s) => {
+        const key = s.n + Math.round(s.la * 200) + Math.round(s.ln * 200);
+        if (seenSt.has(key)) return;
+        seenSt.add(key);
+        const [x, y] = pr.px(s.la, s.ln);
+        if (x < M.x + 10 || x > M.x + M.w - 10 || y < M.y + 10 || y > M.y + M.h - 10) return;
+        const bonus = (cityMode ? s.c === spec.city : file.code === spec.pref && !!s.c) ? 3 : 0;
+        stations.push({ s, x, y, score: s.k + bonus });
+      }));
+      stations.sort((a, b) => b.score - a.score || a.s.n.localeCompare(b.s.n));
+      const maxSt = cityMode ? 9 : 5;
+      const r = cityMode ? 7 : 5.5;
+      let nSt = 0;
+      stations.forEach((st) => {
+        if (nSt >= maxSt) return;
+        const px = cityMode ? 22 : 20;
+        const b = placeLabel(ctx, taken, pts, M, st.s.n + "駅", px, true, st.x, st.y, [[r + 6, px * 0.36, "left"], [-r - 6, px * 0.36, "right"], [0, -r - 8, "center"], [0, r + px + 4, "center"]]);
+        if (!b) return;
+        nSt++;
+        ctx.beginPath(); ctx.arc(st.x, st.y, r, 0, Math.PI * 2);
+        ctx.fillStyle = C.white; ctx.fill(); ctx.lineWidth = 3; ctx.strokeStyle = C.ink; ctx.stroke();
+        placed.push(Object.assign(b, { text: st.s.n + "駅", px, color: C.ink, station: true }));
+      });
+      placed.forEach((l) => haloText(ctx, l.text, l.x, l.y, l.px, true, l.color));
+      drawLegend(ctx, spec, cityMode, corner, legendBox, scaleBar(pr, M), nSt > 0);
     });
     return outside;
   }
 
+  // 地図の中の凡例（白抜き・駅・太線・縮尺）
+  function legendRows(spec, cityMode) {
+    const rows = [["rough", "白抜き＝町名の代表点"], ["station", "灰色の線＝線路"], ["bold", `太線＝${cityMode ? spec.cityName : spec.prefName}の境界`], ["scale", ""]];
+    return rows;
+  }
+  function legendSize(ctx, spec, cityMode) {
+    ctx.font = font(20);
+    const rows = legendRows(spec, cityMode);
+    return { w: 58 + Math.max(...rows.map((l) => ctx.measureText(l[1]).width), 150) + 18, h: rows.length * 32 + 12 };
+  }
+  function bestCorner(M, box, pts) {
+    const corners = [[M.x + 10, M.y + M.h - box.h - 10], [M.x + M.w - box.w - 10, M.y + M.h - box.h - 10], [M.x + 10, M.y + 10], [M.x + M.w - box.w - 10, M.y + 10]];
+    const busy = (c) => pts.filter((q) => q.x > c[0] - 40 && q.x < c[0] + box.w + 40 && q.y > c[1] - 40 && q.y < c[1] + box.h + 40).length;
+    return corners.reduce((a, c) => (busy(c) < busy(a) ? c : a));
+  }
+  function drawLegend(ctx, spec, cityMode, [bx, by], box, bar, hasStation) {
+    ctx.fillStyle = "rgba(255,255,255,.93)"; ctx.fillRect(bx, by, box.w, box.h);
+    ctx.lineWidth = 1.2; ctx.strokeStyle = C.line; ctx.strokeRect(bx, by, box.w, box.h);
+    legendRows(spec, cityMode).forEach((l, i) => {
+      const cy = by + 28 + i * 32, cx = bx + 28;
+      ctx.fillStyle = C.ink; ctx.font = font(20);
+      if (l[0] === "rough") drawShape(ctx, spec.groups.jp, cx, cy - 7, 20, true);
+      else if (l[0] === "station") {
+        // 駅名を1つも置けなかったときは、線路の見本だけにする
+        ctx.beginPath(); ctx.moveTo(cx - 20, cy - 7); ctx.lineTo(cx + 20, cy - 7); ctx.lineWidth = 2.2; ctx.strokeStyle = C.rail; ctx.stroke();
+        if (hasStation) { ctx.beginPath(); ctx.arc(cx, cy - 7, 6, 0, Math.PI * 2); ctx.fillStyle = C.white; ctx.fill(); ctx.lineWidth = 3; ctx.strokeStyle = C.ink; ctx.stroke(); }
+        ctx.fillStyle = C.ink; ctx.font = font(20);
+        ctx.fillText(hasStation ? "駅と線路" : "灰色の線＝線路", bx + 58, cy);
+        return;
+      } else if (l[0] === "bold") { ctx.beginPath(); ctx.moveTo(cx - 18, cy - 7); ctx.lineTo(cx + 18, cy - 7); ctx.lineWidth = 5; ctx.strokeStyle = C.ink; ctx.stroke(); }
+      else {
+        const w = Math.min(bar.px, box.w - 90);
+        ctx.beginPath(); ctx.moveTo(bx + 14, cy - 10); ctx.lineTo(bx + 14, cy - 2); ctx.lineTo(bx + 14 + w, cy - 2); ctx.lineTo(bx + 14 + w, cy - 10);
+        ctx.lineWidth = 3; ctx.strokeStyle = C.ink; ctx.stroke();
+        ctx.fillStyle = C.ink; ctx.font = font(20, true); ctx.fillText(bar.label, bx + 24 + w, cy);
+        return;
+      }
+      ctx.fillStyle = C.ink; ctx.font = font(20);
+      ctx.fillText(l[1], bx + 58, cy);
+    });
+  }
+
+  // ---- 説明の欄 ----
   // 学校の種類ごとの校数（形の見本を兼ねる）
   function drawSchoolRows(ctx, spec, P, y, z) {
     spec.rows.forEach((r) => {
@@ -265,23 +369,53 @@ window.MapImage = (function () {
       ctx.textAlign = "right";
       if (on) { ctx.fillStyle = C.ink; ctx.font = font(z.num, true); ctx.fillText(`${fmt(r.n)}校`, P.x + P.w, y); } else { ctx.fillStyle = C.muted; ctx.font = font(z.sub); ctx.fillText("表示していません", P.x + P.w, y); }
       ctx.textAlign = "left";
-      if (r.sub && on) { y += z.sub + 14; ctx.fillStyle = C.muted; ctx.font = font(z.sub); ctx.fillText(r.sub, P.x + z.shape + 14, y); }
-      y += 16;
+      if (r.sub && on) { y += z.sub + 12; ctx.fillStyle = C.muted; ctx.font = font(z.sub); ctx.fillText(r.sub, P.x + z.shape + 14, y); }
+      y += 14;
       hr(ctx, P.x, y, P.w);
     });
     return y;
   }
 
+  // 色の凡例（左）と多い都道府県（右）
+  function drawScaleAndTop(ctx, P, y, title, scale, top, fillOpacity) {
+    const lx = P.x, rx = P.x + 400, rw = P.w - 400;
+    let ly = y, ry = y;
+    ctx.fillStyle = C.brand; ctx.font = font(24, true);
+    ctx.fillText(title, lx, ly);
+    ctx.fillText(top.title, rx, ry);
+    ly += 30;
+    ctx.fillStyle = C.ink; ctx.font = font(21, true);
+    ctx.fillText("色が濃いほど多い", lx, ly);
+    scale.forEach((r) => {
+      ly += 35;
+      ctx.fillStyle = C.land; ctx.fillRect(lx, ly - 21, 34, 25);
+      ctx.globalAlpha = fillOpacity; ctx.fillStyle = r.color; ctx.fillRect(lx, ly - 21, 34, 25); ctx.globalAlpha = 1;
+      ctx.lineWidth = 1; ctx.strokeStyle = C.border; ctx.strokeRect(lx, ly - 21, 34, 25);
+      ctx.fillStyle = C.ink; ctx.font = font(23); ctx.fillText(r.label, lx + 46, ly);
+    });
+    ry += 30;
+    top.rows.forEach((t) => {
+      ry += 38;
+      ctx.fillStyle = C.ink; ctx.font = font(24, true);
+      ctx.fillText(`${t.rank}位`, rx, ry);
+      ctx.font = font(24); ctx.fillText(t.name, rx + 58, ry);
+      ctx.textAlign = "right"; ctx.font = font(24, true); ctx.fillText(t.value, rx + rw, ry); ctx.textAlign = "left";
+    });
+    return Math.max(ly, ry);
+  }
+
   // A：全国の学校分布の説明欄
   function panelSchools(ctx, spec, P) {
     const bottom = P.y + P.h;
-    let y = P.y + 32;
-    ctx.fillStyle = C.brand; ctx.font = font(32, true);
+    let y = P.y + 30;
+    ctx.fillStyle = C.brand; ctx.font = font(28, true);
     ctx.fillText("全国の学校の数", P.x, y);
-    y = drawSchoolRows(ctx, spec, P, y + 6, { row: 66, label: 34, num: 56, sub: 26, shape: 36 });
-    y += 44;
+    y = drawSchoolRows(ctx, spec, P, y - 4, { row: 56, label: 30, num: 46, sub: 21, shape: 32 });
+    y = drawScaleAndTop(ctx, P, y + 40, "色：都道府県ごとの校数", spec.scale, { title: "校数の多い都道府県", rows: spec.top }, spec.fillOpacity) + 20;
+    hr(ctx, P.x, y, P.w);
+    y += 30;
     ctx.fillStyle = C.muted;
-    spec.notes.forEach((t) => { y = drawNote(ctx, t, P.x, y, P.w, 24, bottom - 8) + 10; });
+    spec.notes.forEach((t) => { y = drawNote(ctx, t, P.x, y, P.w, 20, bottom - 6) + 2; });
   }
 
   // B：全国の人数分布の説明欄
@@ -291,122 +425,146 @@ window.MapImage = (function () {
     let y = P.y + 30;
     ctx.fillStyle = C.muted; ctx.font = font(24, true);
     ctx.fillText("都道府県別の人数（国の統計）", P.x, y);
-    y += 64;
+    y += 62;
     ctx.fillStyle = C.ink; ctx.font = font(32, true);
     ctx.fillText("全国", P.x, y);
-    ctx.font = font(60, true);
+    ctx.font = font(58, true);
     ctx.fillText(m.national, P.x + 84, y + 4);
-    y += 46;
+    y += 44;
     ctx.font = font(26, true);
     ctx.fillText(`基準日 ${m.period}`, P.x, y);
     if (m.extra) { const w = ctx.measureText(`基準日 ${m.period}`).width; ctx.fillStyle = C.muted; ctx.font = font(22); ctx.fillText(`（${m.extra}）`, P.x + w + 8, y); }
-    y += 24;
+    y += 22;
     hr(ctx, P.x, y, P.w);
-    // 左：人数の多い都道府県 ／ 右：色の凡例
-    const lx = P.x, lw = 370, rx = P.x + 410;
-    let ly = y + 40, ry = y + 40;
-    ctx.fillStyle = C.brand; ctx.font = font(24, true);
-    ctx.fillText("人数の多い都道府県", lx, ly);
-    ctx.fillText("色の凡例", rx, ry);
-    m.top.forEach((t) => {
-      ly += 40;
-      ctx.fillStyle = C.ink; ctx.font = font(26, true);
-      ctx.fillText(`${t.rank}位`, lx, ly);
-      ctx.font = font(26); ctx.fillText(t.name, lx + 62, ly);
-      ctx.textAlign = "right"; ctx.font = font(26, true); ctx.fillText(t.value, lx + lw, ly); ctx.textAlign = "left";
-    });
-    m.scale.forEach((r) => {
-      ry += 36;
-      ctx.fillStyle = C.land; ctx.fillRect(rx, ry - 21, 34, 25);
-      ctx.globalAlpha = spec.fillOpacity; ctx.fillStyle = r.color; ctx.fillRect(rx, ry - 21, 34, 25); ctx.globalAlpha = 1;
-      ctx.lineWidth = 1; ctx.strokeStyle = C.border; ctx.strokeRect(rx, ry - 21, 34, 25);
-      ctx.fillStyle = C.ink; ctx.font = font(24); ctx.fillText(r.label, rx + 44, ry);
-    });
-    y = Math.max(ly, ry) + 22;
+    y = drawScaleAndTop(ctx, P, y + 40, "色の凡例", m.scale, { title: "人数の多い都道府県", rows: m.top }, spec.fillOpacity) + 20;
     hr(ctx, P.x, y, P.w);
-    y += 36;
+    y += 32;
     if (m.pick) {
       ctx.fillStyle = C.ink;
-      y = drawNote(ctx, `選んだ地域（太線）：${m.pick}`, P.x, y, P.w, 24, bottom - 8, true) + 6;
+      y = drawNote(ctx, `選んだ地域（太線）：${m.pick}`, P.x, y, P.w, 23, bottom - 6, true) + 4;
     }
     ctx.fillStyle = C.muted;
-    [m.note, "色の濃さは都道府県の人数の多さです。学校ごとの人数ではありません。"].forEach((t) => { y = drawNote(ctx, t, P.x, y, P.w, 22, bottom - 8) + 4; });
+    [m.note, "色の濃さは都道府県の人数の多さです。学校ごとの人数ではありません。"].forEach((t) => { y = drawNote(ctx, t, P.x, y, P.w, 21, bottom - 6) + 2; });
   }
 
-  // C：選択した地域の説明欄
+  // C：選択した地域の説明欄（学校の数／国の統計を分ける）
   function panelRegion(ctx, spec, P, outside) {
     const m = spec.metric;
     const bottom = P.y + P.h;
-    let y = P.y + 28;
-    ctx.fillStyle = C.brand; ctx.font = font(28, true);
-    ctx.fillText(`${spec.region}の学校の数`.slice(0, 18), P.x, y);
-    y = drawSchoolRows(ctx, spec, P, y + 2, { row: 54, label: 28, num: 44, sub: 22, shape: 30 });
+    let y = P.y + 32;
+    ctx.fillStyle = C.brand; ctx.font = font(26, true);
+    ctx.fillText("学校の数（所在地）", P.x, y);
+    y = drawSchoolRows(ctx, spec, P, y - 2, { row: 56, label: 28, num: 44, sub: 21, shape: 30 });
     y += 30;
     ctx.fillStyle = C.muted;
     const notes = [];
     if (spec.unmapped) notes.push(`位置が分からない${fmt(spec.unmapped)}校は地図に出していませんが、校数に含みます。`);
-    if (outside) notes.push(`地図の外（離島など）の${fmt(outside)}校も校数に含みます。`);
-    if (!notes.length) notes.push("大学などは本部・本校の所在地で数えています。");
-    notes.forEach((t) => { y = drawNote(ctx, t, P.x, y, P.w, 21, bottom - 200) + 2; });
-    // 都道府県の人数（国の統計）
-    const top = y + 4;
+    if (outside) notes.push(`地図の範囲の外（離島など）の${fmt(outside)}校も校数に含みます。`);
+    notes.push("大学・短大・高専・専門学校は本部・本校の所在地で数えています。");
+    const noteBottom = m ? bottom - 216 : bottom - 6;
+    notes.forEach((t) => { y = drawNote(ctx, t, P.x, y, P.w, 20, noteBottom) + 2; });
+    if (!m) {
+      // 市区町村の画像：空いた所に、都道府県の中のどこかを示す小さな地図
+      const top = Math.max(y + 20, bottom - 290);
+      if (spec.locator && bottom - top > 150) drawLocator(ctx, spec, { x: P.x, y: top, w: P.w, h: bottom - top });
+      return;
+    }
+    // 都道府県の人数（国の統計）。市区町村の画像では「参考：○○全体」と分ける
+    const top = bottom - 206;
     ctx.fillStyle = C.soft; ctx.fillRect(P.x, top, P.w, bottom - top);
     ctx.fillStyle = C.brand; ctx.fillRect(P.x, top, 5, bottom - top);
     const x = P.x + 20, w = P.w - 30;
-    y = top + 34;
-    ctx.fillStyle = C.muted; ctx.font = font(21, true);
-    ctx.fillText("都道府県の人数（国の統計）", x, y);
-    y += 36;
-    ctx.fillStyle = C.ink; ctx.font = font(25, true);
-    y = drawWrapped(ctx, `${m.area}の${m.label}`, x, y, w, 33, 2, bottom);
-    y += 16;
-    ctx.font = font(46, true);
-    ctx.fillText(m.value, x, y + 4);
-    y += 38;
-    ctx.font = font(22, true);
+    y = top + 32;
+    ctx.fillStyle = m.ref ? C.brand : C.muted; ctx.font = font(21, true);
+    ctx.fillText(m.ref ? `参考：${m.area}全体（国の統計）` : "国の統計（学校の所在地とは別の資料）", x, y);
+    y += 34;
+    ctx.fillStyle = C.ink;
+    fitFont(ctx, `${m.area}${m.ref ? "全体" : ""}の${m.label}`, w, 24, 18, true);
+    ctx.fillText(`${m.area}${m.ref ? "全体" : ""}の${m.label}`, x, y);
+    y += 46;
+    ctx.font = font(42, true);
+    ctx.fillText(m.value, x, y);
+    y += 30;
+    ctx.font = font(21, true);
     ctx.fillText(`基準日 ${m.period}${m.rank ? `・全国${m.rank}位／47` : ""}`, x, y);
-    y += 32;
+    y += 28;
     ctx.fillStyle = C.muted;
-    drawNote(ctx, (m.city ? "市区町村ごとの人数ではありません。" : "") + m.note, x, y, w, 20, bottom - 10);
+    drawNote(ctx, (m.ref ? `${spec.cityName}内の人数ではありません。` : "") + m.note, x, y, w, 19, bottom - 8);
+  }
+
+  // 都道府県の中の位置（選んだ市区町村を濃く塗る）
+  function drawLocator(ctx, spec, R) {
+    ctx.fillStyle = C.brand; ctx.font = font(22, true);
+    ctx.fillText(`${spec.prefName}の中の位置`, R.x, R.y + 22);
+    const F = { x: R.x, y: R.y + 36, w: R.w, h: R.h - 36 };
+    const own = spec.local[0];
+    const pr = projector(spec.locator, F);
+    frame(ctx, F, () => {
+      own.cities.forEach((c) => {
+        cityPath(ctx, c, own.arcs, pr.px);
+        ctx.fillStyle = c.c === spec.city ? C.ink : C.land; ctx.fill("evenodd");
+        ctx.lineWidth = 0.8; ctx.strokeStyle = C.city; ctx.stroke();
+      });
+    });
+  }
+
+  // 地図データが読めないとき：校数の横棒グラフ
+  function drawChart(ctx, spec, M) {
+    frame(ctx, M, () => {
+      const bars = spec.bars;
+      let y = M.y + 50;
+      ctx.fillStyle = C.brand; ctx.font = font(28, true);
+      ctx.fillText(spec.barsTitle, M.x + 30, y);
+      ctx.fillStyle = C.muted; ctx.font = font(20);
+      ctx.fillText("地図データを読み込めなかったため、グラフで表しています。", M.x + 30, y + 34);
+      y += 70;
+      const max = Math.max(1, ...bars.map((b) => b.n));
+      const lw = 230, bw = M.w - lw - 150, gap = Math.min(52, (M.y + M.h - y - 20) / Math.max(1, bars.length));
+      bars.forEach((b) => {
+        y += gap;
+        ctx.fillStyle = C.ink;
+        fitFont(ctx, b.name, lw - 10, 24, 17, true);
+        ctx.fillText(b.name, M.x + 30, y);
+        const w = Math.max(3, (bw * b.n) / max);
+        ctx.fillStyle = b.color || C.bar; ctx.fillRect(M.x + 30 + lw, y - 24, w, 30);
+        ctx.fillStyle = C.ink; ctx.font = font(24, true);
+        ctx.fillText(`${fmt(b.n)}校`, M.x + 30 + lw + w + 12, y);
+      });
+    }, C.white);
+    return 0;
   }
 
   function drawHead(ctx, spec) {
     ctx.fillStyle = C.bg; ctx.fillRect(0, 0, W, H);
-    ctx.fillStyle = C.accent; ctx.fillRect(0, 0, W, 10);
-    ctx.fillStyle = C.brand; ctx.font = font(30, true);
-    ctx.fillText(spec.siteName, 24, 56);
-    const nw = ctx.measureText(spec.siteName).width;
-    ctx.fillStyle = C.muted; ctx.font = font(22, true);
-    ctx.fillText("テスト運用中", 24 + nw + 16, 55);
-    ctx.textAlign = "right"; ctx.fillStyle = C.brand; ctx.font = font(24, true);
-    ctx.fillText(spec.siteUrl, W - 24, 56);
-    ctx.textAlign = "left";
+    ctx.fillStyle = C.accent; ctx.fillRect(0, 0, W, 8);
+    ctx.fillStyle = C.brand; ctx.font = font(22, true);
+    ctx.fillText(`${spec.siteName}（テスト運用中）`, 24, 42);
     ctx.fillStyle = C.ink;
-    fitFont(ctx, spec.title, W - 48, 58, 38, true);
-    ctx.fillText(spec.title, 24, 126);
+    fitFont(ctx, spec.title, W - 48, 56, 36, true);
+    ctx.fillText(spec.title, 24, 104);
     if (spec.subtitle) {
-      const tw = ctx.measureText(spec.title).width;
-      ctx.font = font(28, true);
-      if (24 + tw + 28 + ctx.measureText(spec.subtitle).width <= W - 24) { ctx.fillStyle = C.muted; ctx.fillText(spec.subtitle, 24 + tw + 28, 124); }
+      ctx.fillStyle = C.muted;
+      fitFont(ctx, spec.subtitle, W - 48, 28, 20, true);
+      ctx.fillText(spec.subtitle, 24, 146);
     }
   }
 
-  // 出典（出典機関と基準日・確認日）
+  // 出典（機関名・統計名・基準日）。サイトのURLは右下に小さく
   function drawFoot(ctx, spec) {
-    const school = `学校：${spec.agencies}の公表資料をもとに作成（確認日 ${spec.checked}）`;
-    const border = "境界：国土数値情報（行政区域データ）国土交通省を加工";
-    const pos = "位置：位置参照情報 国土交通省を加工";
-    const stat = spec.metric ? `統計：${spec.metric.source}／基準日 ${spec.metric.period}` : "";
-    const lines = spec.kind === "schools" ? [school, `${border}／${pos}。点と数字は学校の所在地で、人数ではありません。`]
-      : spec.kind === "stats" ? [stat, `${border}。色は都道府県ごとの人数（国の統計）で、学校の所在地とは別の情報です。`]
-        : [school, stat, `${border}／${pos}。学校の所在地と都道府県の人数は別の情報です。`];
-    let y = H - 24 - (lines.length - 1) * 32;
-    lines.forEach((l) => {
+    const lines = spec.foot.concat(spec.kind === "region" ? [CREDIT.region] : spec.kind === "chart" ? [] : [CREDIT.border + (spec.footExtra || "")]);
+    ctx.font = font(19, true);
+    const uw = ctx.measureText(spec.siteUrl).width;
+    let y = H - 20 - (lines.length - 1) * 27;
+    lines.forEach((l, i) => {
+      const last = i === lines.length - 1;
       ctx.fillStyle = C.muted;
-      fitFont(ctx, l, W - 48, 22, 17);
+      fitFont(ctx, l, W - 48 - (last ? uw + 28 : 0), 20, 17);
       ctx.fillText(l, 24, y);
-      y += 32;
+      y += 27;
     });
+    ctx.textAlign = "right"; ctx.fillStyle = C.brand; ctx.font = font(19, true);
+    ctx.fillText(spec.siteUrl, W - 24, H - 20);
+    ctx.textAlign = "left";
   }
 
   function render(spec) {
@@ -414,9 +572,9 @@ window.MapImage = (function () {
     canvas.width = W; canvas.height = H;
     const ctx = canvas.getContext("2d");
     drawHead(ctx, spec);
-    if (spec.kind === "region") {
+    if (spec.kind === "region" || spec.kind === "chart") {
       const { M, P } = LAYOUT.region;
-      const outside = drawRegion(ctx, spec, M);
+      const outside = spec.kind === "chart" ? drawChart(ctx, spec, M) : drawRegion(ctx, spec, M);
       panelRegion(ctx, spec, P, outside);
     } else {
       const { M, P } = LAYOUT.nation;

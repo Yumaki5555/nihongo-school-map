@@ -213,6 +213,10 @@ def main():
         shutil.copy(SITE / name, DOCS / name)
     (DOCS / "data").mkdir(exist_ok=True)
     shutil.copy(ROOT / "data" / "geo" / "prefectures.json", DOCS / "data" / "prefectures.json")
+    # 画像保存用の地図データ（都道府県ごとの市区町村の境界・線路・駅。scripts/build_geo.py で作る）
+    (DOCS / "data" / "geo").mkdir(exist_ok=True)
+    for f in sorted((ROOT / "data" / "geo").glob("p[0-9][0-9].json")) + [ROOT / "data" / "geo" / "index.json"]:
+        shutil.copy(f, DOCS / "data" / "geo" / f.name)
     stats = public_stats()
     write_json("data/schools.json", public_schools())
     write_json("data/stats.json", stats)

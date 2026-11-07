@@ -14,14 +14,15 @@
     kosen: { label: "高専", group: "higher" },
     senmon: { label: "専門学校", group: "senmon" },
   };
-  const RAMP = ["#FADFB8", "#F5C484", "#EBA053", "#CC7629", "#924C17"];
+  const RAMP = ["#FADFB8", "#F5C484", "#EBA053", "#CC7629", "#924C17"]; // 人数（国の統計）
+  const COUNT_RAMP = ["#DCE9F2", "#B0CDE3", "#7AA9CF", "#4580B5", "#1F5487"]; // 学校の数（人数と見分けるため別の色）
   const ZERO = "#FFFFFF";
   const NODATA = "#D9D6CE";
   const PAGE = 50;
   const HOME = [[24.0, 122.6], [45.7, 146.0]]; // 沖縄まで入る範囲
-  const BUBBLE_BELOW = 6.5; // これより引いた全国表示では、都道府県ごとの数を出す
-  // 地図に出すもの：学校の場所／人数の分布（全国の色分け）／両方
-  const VIEWS = ["place", "stats", "both"];
+  const NATION_BELOW = 6.5; // これより引いた全国表示では、学校の点を出さず都道府県ごとの校数を色で表す
+  // 地図に出すもの：学校の数と場所／人数の分布（国の統計）。2つは別の情報なので同時には出さない
+  const VIEWS = ["place", "stats"];
   const VEIL = 0.38; // 地域を選んでいる間、ほかの都道府県にかける白い膜の濃さ
   const ROMAJI = ["hokkaido", "aomori", "iwate", "miyagi", "akita", "yamagata", "fukushima", "ibaraki", "tochigi", "gunma", "saitama", "chiba", "tokyo", "kanagawa", "niigata", "toyama", "ishikawa", "fukui", "yamanashi", "nagano", "gifu", "shizuoka", "aichi", "mie", "shiga", "kyoto", "osaka", "hyogo", "nara", "wakayama", "tottori", "shimane", "okayama", "hiroshima", "yamaguchi", "tokushima", "kagawa", "ehime", "kochi", "fukuoka", "saga", "nagasaki", "kumamoto", "oita", "miyazaki", "kagoshima", "okinawa"];
 
@@ -45,7 +46,7 @@
   }
 
   const state = { pref: "", city: "", groups: new Set(Object.keys(GROUPS)), view: "place", layer: "", variant: "all", q: "", kind: "", limit: PAGE };
-  let startSchool = "", D = null, S = null, GEO = null, byId = {}, prefName = {}, repPoint = {}, map = null, cluster = null, bubbles = null, prefLayer = null, markers = {};
+  let startSchool = "", D = null, S = null, GEO = null, byId = {}, prefName = {}, map = null, cluster = null, prefLayer = null, markers = {};
   const places = [];
   let imageUrl = "";
 
@@ -58,7 +59,6 @@
     GEO.features.sort((a, b) => a.properties.code.localeCompare(b.properties.code));
     GEO.features.forEach((f) => {
       prefName[f.properties.code] = f.properties.name;
-      repPoint[f.properties.code] = centroid(mainRing(f));
     });
     D.schools.forEach((s) => {
       s.g = TYPES[s.t].group;
@@ -106,15 +106,6 @@
     return a / 2;
   }
 
-  function centroid(r) {
-    let x = 0, y = 0, a = 0;
-    for (let i = 0, j = r.length - 1; i < r.length; j = i++) {
-      const f = r[j][0] * r[i][1] - r[i][0] * r[j][1];
-      x += (r[j][0] + r[i][0]) * f; y += (r[j][1] + r[i][1]) * f; a += f;
-    }
-    return [y / (3 * a), x / (3 * a)];
-  }
-
   function readUrl() {
     const p = new URLSearchParams(location.search);
     startSchool = p.get("school") || "";
@@ -132,9 +123,9 @@
       const v = p.get("variant");
       state.variant = ind.variants.some((x) => x.id === v) ? v : "all";
     }
-    // view がない古いリンクで人数を選んでいたものは「両方」で開く
+    // 以前の「両方」（view=both）や view のない古いリンクで人数を選んでいたものは、地域があれば学校の場所、なければ人数の分布で開く
     const view = p.get("view");
-    state.view = VIEWS.includes(view) ? view : ind ? "both" : "place";
+    state.view = VIEWS.includes(view) ? view : (view === "both" || ind) && !pref ? "stats" : "place";
   }
 
   function writeUrl() { history.replaceState(null, "", location.pathname + query()); }
@@ -223,6 +214,7 @@
     $("save-img").addEventListener("click", openImage);
     $("img-close").addEventListener("click", () => $("img-dialog").close());
     $("img-kinds").addEventListener("change", renderImage);
+    $("img-ref").addEventListener("change", renderImage);
     $("img-save").addEventListener("click", () => { $("img-saved").hidden = false; });
     $("img-dialog").addEventListener("close", () => { imageJob++; $("img-preview").removeAttribute("src"); if (imageUrl) URL.revokeObjectURL(imageUrl); imageUrl = ""; });
 
@@ -334,14 +326,15 @@
       },
     }).addTo(map);
 
+    // ほぼ同じ場所に重なる学校だけをまとめる。押すと拡大し、いちばん拡大しても重なるときは広げて見せる
     cluster = L.markerClusterGroup({
       chunkedLoading: true,
       showCoverageOnHover: false,
       spiderfyOnMaxZoom: true,
+      zoomToBoundsOnClick: true,
       maxClusterRadius: clusterRadius,
       iconCreateFunction: (c) => clusterIcon(c.getChildCount()),
     });
-    bubbles = L.layerGroup();
     const popWidth = Math.min(320, Math.max(200, map.getSize().x - 64)); // スマホで地図からはみ出さない幅
     const icons = {};
     D.schools.forEach((s) => {
@@ -353,81 +346,75 @@
       markers[s.i] = m;
     });
     map.fitBounds(HOME);
-    map.on("zoomend", () => { syncFill(); syncMode(); });
+    map.on("zoomend", () => {
+      const was = nationView.last;
+      syncFill();
+      syncMode();
+      if (was !== nationView()) { renderLegend(); syncBadge(indicator(), variantOf(indicator(), state.variant)); }
+    });
     // 概要や凡例の高さが変わって地図の大きさが変わったとき
     if (window.ResizeObserver) new ResizeObserver(() => map.invalidateSize({ pan: false })).observe($("map"));
   }
 
-  function clusterRadius(z) { return z < 12 ? 58 : z < 14 ? 34 : 12; }
+  // まとめる距離（画面上のピクセル）。市区町村が見える拡大では、ほぼ同じ位置の学校だけをまとめる
+  function clusterRadius(z) { return z < 10 ? 18 : z < 12 ? 10 : z < 14 ? 5 : 3; }
 
+  // まとめた印：「3校」と単位を付け、市区町村の校数と取り違えないようにする
   function clusterIcon(n) {
-    const size = n < 10 ? 28 : n < 100 ? 32 : n < 1000 ? 38 : 44;
-    return L.divIcon({ html: `<span>${fmt(n)}</span>`, className: "cl", iconSize: [size, size] });
+    const w = n < 10 ? 40 : n < 100 ? 48 : 56;
+    return L.divIcon({ html: `<span>${fmt(n)}校</span>`, className: "cl", iconSize: [w, 26] });
   }
 
-  // 重なる丸を少しずつ押し広げる（全国の都道府県の数・画像で共用）
-  function relax(items, gap) {
-    items.forEach((a, k) => { a.x = a.ax + k * 0.01; a.y = a.ay; });
-    for (let t = 0; t < 240; t++) {
-      let moved = false;
-      for (let i = 0; i < items.length; i++) {
-        for (let j = i + 1; j < items.length; j++) {
-          const a = items[i], b = items[j];
-          const dx = b.x - a.x, dy = b.y - a.y, d = Math.hypot(dx, dy) || 0.01, min = a.r + b.r + gap;
-          if (d < min) {
-            const p = (min - d) / 2 / d;
-            a.x -= dx * p; a.y -= dy * p; b.x += dx * p; b.y += dy * p;
-            moved = true;
-          }
-        }
-      }
-      items.forEach((a) => { a.x += (a.ax - a.x) * 0.015; a.y += (a.ay - a.y) * 0.015; });
-      if (!moved) break;
-    }
-    return items;
-  }
-
+  // 都道府県ごとの校数（表示中の種類。位置が分からない学校も都道府県は分かるので数える）
   function prefCounts() {
     const c = {};
-    D.schools.forEach((s) => { if (s.la != null && state.groups.has(s.g)) c[s.p] = (c[s.p] || 0) + 1; });
+    Object.keys(prefName).forEach((k) => { c[k] = 0; });
+    D.schools.forEach((s) => { if (state.groups.has(s.g)) c[s.p]++; });
     return c;
   }
 
-  function renderBubbles() {
-    bubbles.clearLayers();
-    const c = prefCounts();
-    const soft = state.view === "both"; // 両方のときは色分けが見えるよう、数を小さく控えめに
-    const items = Object.keys(c).map((code) => {
-      const a = map.latLngToLayerPoint(repPoint[code]);
-      return { code, n: c[code], ax: a.x, ay: a.y, r: soft ? (c[code] < 100 ? 8 : 10) : c[code] < 100 ? 10 : c[code] < 1000 ? 12 : 14 };
-    });
-    relax(items, 1).forEach((i) => {
-      const ll = map.layerPointToLatLng([i.x, i.y]);
-      if (Math.hypot(i.x - i.ax, i.y - i.ay) > 8) L.polyline([repPoint[i.code], ll], { pane: "lines", color: "#5C5140", weight: 1, opacity: 0.7, interactive: false }).addTo(bubbles);
-      const m = L.marker(ll, { icon: L.divIcon({ className: "cl cl-pref" + (soft ? " cl-soft" : ""), html: `<span>${fmt(i.n)}</span>`, iconSize: [i.r * 2, i.r * 2] }), title: `${prefName[i.code]}：地図の点 ${fmt(i.n)}（クリックで移動）`, alt: `${prefName[i.code]} ${fmt(i.n)}` });
-      m.on("click", () => setPref(i.code));
-      bubbles.addLayer(m);
-    });
+  // 校数の色の区切り（その時の47都道府県の数から、切りのよい数で5段階まで）。
+  // 4分の1ずつの区切りに、東京都のような飛び抜けて多い県を分ける区切りを1つ足す
+  function niceNum(x) {
+    const p = Math.pow(10, Math.floor(Math.log10(x)));
+    const m = x / p;
+    return (m < 1.5 ? 1 : m < 2.5 ? 2 : m < 4 ? 3 : m < 7.5 ? 5 : 10) * p;
+  }
+  function countBreaks(values) {
+    const v = Object.values(values).filter((x) => x > 0).sort((a, b) => a - b);
+    const out = [];
+    if (!v.length) return out;
+    const add = (x) => { const b = niceNum(Math.max(2, x)); if (b > v[0] && b <= v[v.length - 1] && b > (out[out.length - 1] || 0)) out.push(b); };
+    [0.25, 0.5, 0.75].forEach((q) => add(v[Math.min(v.length - 1, Math.floor(q * v.length))]));
+    if (out.length) add(Math.sqrt(out[out.length - 1] * v[v.length - 1]));
+    return out;
+  }
+  // 学校の数の色分け（地図と画像で共用）
+  function countScale() {
+    const values = prefCounts();
+    const breaks = countBreaks(values);
+    const ramp = COUNT_RAMP.slice(COUNT_RAMP.length - breaks.length - 1);
+    return { values, breaks, ramp, color: (n) => colorFor(n, breaks, ramp), rows: scaleRows({ values, breaks }, "校", ramp) };
   }
 
-  function useBubbles() { return !state.pref && map.getZoom() < BUBBLE_BELOW; }
+  // 全国表示：地域を選ばず引いて見ているとき。学校の点は出さず、都道府県ごとの校数を色で表す
+  function nationView() { return (nationView.last = !state.pref && map.getZoom() < NATION_BELOW); }
 
   // 地域を選んで点を見ている（人数の分布では地域へ寄せても色分けを残すので当たらない）
   function regionZoomed() { return !!state.pref && state.view !== "stats"; }
-  // 都道府県を人数で塗るか
-  function showFill() { return state.view !== "place" && !regionZoomed(); }
+  // 都道府県を人数（国の統計）で塗るか
+  function showFill() { return state.view === "stats"; }
+  // 都道府県を学校の数で塗るか
+  function showCount() { return state.view === "place" && nationView(); }
 
   function toggleLayer(layer, on) {
     if (on && !map.hasLayer(layer)) map.addLayer(layer);
     if (!on && map.hasLayer(layer)) map.removeLayer(layer);
   }
 
-  // 人数の分布では学校の点も数も出さない（色の違いを見やすくするため）
+  // 人数の分布では学校の点を出さない（学校の所在地と国の統計を混ぜないため）。全国表示でも点は出さない
   function syncMode() {
-    const pts = state.view !== "stats";
-    toggleLayer(cluster, pts && !useBubbles());
-    toggleLayer(bubbles, pts && useBubbles());
-    if (pts && useBubbles()) renderBubbles();
+    toggleLayer(cluster, state.view === "place" && !nationView());
   }
 
   function setView(v) {
@@ -437,21 +424,25 @@
     applyLayer();
     // 人数の分布との切り替えでは、選んでいる地域（なければ全国）を映し直す
     applyRegion(v === "stats" || (was === "stats" && !!state.pref));
+    renderLegend();
   }
 
   function prefTip(code) {
     const ind = indicator();
-    if (state.view === "place") return esc(prefName[code]);
+    if (state.view === "place") {
+      if (!showCount()) return esc(prefName[code]);
+      return `<b>${esc(prefName[code])}</b><br>学校 ${fmt(prefCounts()[code])}校（表示中の種類）<br><small>押すと拡大して学校の位置を表示</small>`;
+    }
     const v = variantOf(ind, state.variant);
     return `<b>${esc(prefName[code])}</b><br>${esc(short(ind, v))}：${valueText(v.values[code])}`;
   }
 
-  function colorFor(n, br) {
+  function colorFor(n, br, ramp) {
     if (n == null) return NODATA;
     if (n === 0) return ZERO;
     let i = 0;
     while (i < br.length && n >= br[i]) i++;
-    return RAMP[i];
+    return (ramp || RAMP)[i];
   }
 
   function prefStyle(f) {
@@ -461,21 +452,23 @@
     const base = { color: selected ? "#352D20" : "#7A6A45", weight: selected ? 3 : 1, opacity: selected ? 1 : 0.75 };
     // 地域を選んで拡大したら人数の色は消し、選んだ地域の外を白く薄めて輪郭を見やすくする
     if (regionZoomed()) return Object.assign(base, { fillColor: "#fff", fillOpacity: selected ? 0.001 : VEIL });
+    if (showCount()) {
+      const cs = prefStyle.count || (prefStyle.count = countScale());
+      return Object.assign(base, { fillColor: cs.color(cs.values[code]), fillOpacity: 0.85 });
+    }
     if (!showFill()) return Object.assign(base, { fillColor: "#fff", fillOpacity: 0.001 });
     const v = variantOf(ind, state.variant);
     return Object.assign(base, { fillColor: colorFor(v.values[code], v.breaks), fillOpacity: fillOpacity() });
   }
 
-  // 拡大するほど色を薄くして、町名や道路が読めるようにする（凡例の色も合わせる）。両方のときはさらに薄く
-  function fillOpacity() { return opacityAt(map ? map.getZoom() : 5, state.view); }
-  function opacityAt(z, view) {
-    const o = z >= 12 ? 0.25 : z >= 10 ? 0.4 : z >= 8 ? 0.62 : 0.85;
-    return view === "both" ? Math.round(o * 60) / 100 : o;
-  }
+  // 拡大するほど色を薄くして、町名や道路が読めるようにする（凡例の色も合わせる）
+  function fillOpacity() { return showCount() ? 0.85 : opacityAt(map ? map.getZoom() : 5); }
+  function opacityAt(z) { return z >= 12 ? 0.25 : z >= 10 ? 0.4 : z >= 8 ? 0.62 : 0.85; }
+
+  function restyle() { prefStyle.count = null; prefLayer.setStyle(prefStyle); }
 
   function syncFill() {
-    if (!showFill()) return;
-    prefLayer.setStyle(prefStyle);
+    restyle();
     $("legend").style.setProperty("--fo", fillOpacity());
   }
 
@@ -483,6 +476,7 @@
     cluster.clearLayers();
     cluster.addLayers(D.schools.filter((s) => s.la != null && state.groups.has(s.g)).map((s) => markers[s.i]));
     syncMode();
+    if (showCount()) { restyle(); renderLegend(); }
     const on = [...state.groups];
     $("now-types").textContent = on.length === 3 ? "すべて" : on.length ? on.map((k) => GROUPS[k].label).join("、") : "なし";
   }
@@ -490,7 +484,7 @@
   function applyLayer() {
     const ind = indicator();
     const v = variantOf(ind, state.variant);
-    const colored = state.view !== "place";
+    const colored = state.view === "stats";
     $("seg-view").querySelectorAll("button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.view === state.view)));
     $("sel-layer").hidden = !colored;
     const box = $("sel-variant");
@@ -501,7 +495,7 @@
     } else {
       box.hidden = true;
     }
-    prefLayer.setStyle(prefStyle);
+    restyle();
     syncMode();
     syncBadge(ind, v);
     renderLegend();
@@ -512,19 +506,19 @@
   // スマホで、地図の上に今の色分けを小さく出す
   function syncBadge(ind, v) {
     const badge = $("layer-badge");
-    badge.hidden = !showFill();
-    badge.textContent = showFill() ? `色：${short(ind, v)}（${ind.period}）` : "";
+    badge.hidden = !showFill() && !showCount();
+    badge.textContent = showFill() ? `色：${short(ind, v)}（${ind.period}・国の統計）` : showCount() ? "色：都道府県ごとの学校の数" : "";
   }
 
   // 凡例の1段（画像でも同じものを使う）
-  function scaleRows(v) {
-    const b = v.breaks, vals = Object.values(v.values);
-    const rows = RAMP.map((color, i) => {
+  function scaleRows(v, unit, ramp) {
+    const b = v.breaks, vals = Object.values(v.values), u = unit || "人", r = ramp || RAMP;
+    const rows = r.map((color, i) => {
       const lo = i === 0 ? null : b[i - 1];
-      const hi = i === RAMP.length - 1 ? null : b[i] - 1;
-      return { color, label: lo == null ? `${fmt(hi)}人以下` : hi == null ? `${fmt(lo)}人以上` : `${fmt(lo)}～${fmt(hi)}人` };
+      const hi = i === r.length - 1 ? null : b[i] - 1;
+      return { color, label: lo == null ? `${fmt(hi)}${u}以下` : hi == null ? `${fmt(lo)}${u}以上` : lo === hi ? `${fmt(lo)}${u}` : `${fmt(lo)}～${fmt(hi)}${u}` };
     });
-    if (vals.includes(0)) rows.unshift({ color: ZERO, label: "0人" });
+    if (vals.includes(0)) rows.unshift({ color: ZERO, label: "0" + u });
     if (vals.some((x) => x == null)) rows.push({ color: NODATA, label: "データなし" });
     return rows;
   }
@@ -532,14 +526,15 @@
   function renderLegend() {
     const ind = indicator();
     const v = variantOf(ind, state.variant);
-    const pts = `<div class="lg-points">${Object.keys(GROUPS).map((k) => `<span>${shape(k, 16)}${GROUPS[k].label}</span>`).join("")}<span>${shape("jp", 16, true)}白抜き＝町名までしか位置が分からない学校</span><span><i class="lg-cl">12</i>数字＝まとめた学校の数</span></div>`
+    const pts = `<div class="lg-points">${Object.keys(GROUPS).map((k) => `<span>${shape(k, 16)}${GROUPS[k].label}</span>`).join("")}<span>${shape("jp", 16, true)}白抜き＝町名までしか位置が分からない学校</span><span><i class="lg-cl">3校</i>＝近い場所の学校をまとめた数（押すと拡大）</span></div>`
       + '<p class="lg-note">点は1校に1つで、建物ではなく番地の区画や町の代表の位置です。大学・短大・高専・専門学校は本部・本校の所在地に置き、ほかのキャンパスは表示していません。</p>';
     const scale = `<div class="lg-title">${esc(short(ind, v))}<small>${esc(ind.period)}・都道府県ごとの国の統計</small></div><ul class="lg-scale">${scaleRows(v).map((r) => `<li><i><b style="background:${r.color}"></b></i>${r.label}</li>`).join("")}</ul><p class="lg-note">色の濃さは都道府県の人数の多さです。学校ごとの人数ではありません。</p>`;
     let html;
-    if (state.view === "place") html = pts;
-    else if (state.view === "stats") html = scale + '<p class="lg-note">学校の点は「学校の場所」か「両方」で表示します。</p>';
-    else if (regionZoomed()) html = '<p class="lg-note">地域を選んでいる間は、人数の色分けを消しています。全国の色分けは「全国に戻す」か「人数の分布」で見られます。</p>' + pts;
-    else html = scale + pts;
+    if (state.view === "stats") html = scale + '<p class="lg-note">学校の点は「学校の数と場所」で表示します。</p>';
+    else if (showCount()) {
+      const cs = countScale();
+      html = `<div class="lg-title">都道府県ごとの学校の数<small>色が濃いほど学校数が多い・表示中の種類の合計</small></div><ul class="lg-scale">${cs.rows.map((r) => `<li><i><b style="background:${r.color}"></b></i>${r.label}</li>`).join("")}</ul><p class="lg-note">学校の所在地を数えたもので、人数ではありません。都道府県を押すと拡大して、学校の位置を1校ずつ表示します。</p>`;
+    } else html = pts;
     $("legend").innerHTML = html;
     $("legend").style.setProperty("--fo", fillOpacity());
     map.invalidateSize({ pan: false }); // 凡例の高さが変わると地図の高さも変わるため
@@ -579,7 +574,7 @@
     } else {
       cs.hidden = true;
     }
-    prefLayer.setStyle(prefStyle);
+    restyle();
     if (move) {
       // 人数の分布は都道府県ごとの数なので、市区町村を選んでいても都道府県全体を映す（色分けは残し、選んだ県は太線）
       if (!state.pref) map.fitBounds(HOME, opt);
@@ -807,80 +802,173 @@
     ];
   }
 
-  function imageSpec(kind) {
+  // 日付の書き方（2026-11-07 → 2026年11月7日）
+  function jpDate(iso) {
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso || "");
+    return m ? `${m[1]}年${Number(m[2])}月${Number(m[3])}日` : iso;
+  }
+
+  // 表示中の学校の種類（画像の小見出し用）
+  function typesText() {
+    const on = Object.keys(GROUPS).filter((k) => state.groups.has(k)).map((k) => GROUPS[k].label);
+    return on.length ? on.join("・") : "学校";
+  }
+
+  function topRows(values, unit) {
+    const codes = Object.keys(values).filter((k) => values[k] != null).sort((a, b) => values[b] - values[a] || a.localeCompare(b));
+    return codes.slice(0, 5).map((k) => ({ rank: rankOf(values, k), name: prefName[k], value: unit === "校" ? `${fmt(values[k])}校` : valueText(values[k]) }));
+  }
+
+  function imageBase(kind) {
     const ind = indicator();
     const v = variantOf(ind, state.variant);
-    const base = {
+    return {
       kind,
       siteName: document.body.dataset.name || "日本語学校・留学生 全国マップ",
       siteUrl: document.body.dataset.site,
-      checked: D.generated,
-      agencies: agencies(),
       geo: GEO,
-      rep: repPoint,
-      relax,
       groups: GROUPS,
       on: state.groups,
       metric: { label: short(ind, v), period: ind.period, note: ind.note, source: ind.source_name },
+      schoolLine: `学校：${agencies()}の公表資料をもとに作成（確認日 ${jpDate(D.generated)}）。点や色は学校の所在地で、人数ではありません。`,
+      statLine: `統計：${ind.source_name}／基準日 ${ind.period}`,
     };
-    const on = (s) => state.groups.has(s.g);
+  }
+
+  // 全国の2種類（A：学校分布／B：人数分布）
+  function imageSpec(kind) {
+    const ind = indicator();
+    const v = variantOf(ind, state.variant);
+    const base = imageBase(kind);
     if (kind === "schools") {
-      const c = countsWhere(() => true);
-      const unmapped = D.schools.filter((s) => on(s) && s.la == null).length;
-      const names = { jp: "日本語学校", higher: "大学", senmon: "専門学校" };
-      const picked = Object.keys(GROUPS).filter((k) => state.groups.has(k)).map((k) => names[k]);
+      const cs = countScale();
       return Object.assign(base, {
-        title: picked.length ? `全国の${picked.join("・")}の分布` : "全国の学校の分布",
+        title: "都道府県別の学校の数",
+        subtitle: `数えたもの：${typesText()}の所在地（国の一覧に載っている学校）・確認日 ${jpDate(D.generated)}`,
         file: `nihongo-map_schools_japan_${dateStamp()}.png`,
-        counts: prefCounts(),
-        rows: schoolRows(c),
+        fill: (code) => cs.color(cs.values[code]),
+        fillOpacity: 0.9,
+        selected: state.pref,
+        rows: schoolRows(countsWhere(() => true)),
+        scale: cs.rows,
+        top: topRows(cs.values, "校"),
         metric: null,
         notes: [
-          `地図の数字は、都道府県ごとの地図に位置を表示できる学校の数です${unmapped ? `（位置が分からない${fmt(unmapped)}校は含みません）` : ""}。`,
-          "大学・短大・高専・専門学校は本部・本校の所在地で数えています。",
-          "日本語学校でもある専門学校があるため、種類をまたいだ合計は出していません。",
+          "色は表示中の種類の校数の合計です。人数ではありません。",
+          "大学・短大・高専・専門学校は本部・本校の所在地で数えています。日本語学校でもある専門学校があるため、種類をまたいだ合計は出していません。",
         ],
+        foot: [base.schoolLine],
       });
     }
-    if (kind === "stats") {
-      const codes = Object.keys(v.values).filter((k) => v.values[k] != null).sort((a, b) => v.values[b] - v.values[a] || a.localeCompare(b));
-      const rank = state.pref ? rankOf(v.values, state.pref) : null;
-      return Object.assign(base, {
-        title: `都道府県別の${short(ind, v)}`,
-        subtitle: `基準日 ${ind.period}`,
-        file: `nihongo-map_${ind.id}${v.id !== "all" ? "-" + v.id : ""}_japan_${dateStamp()}.png`,
-        fill: (code) => colorFor(v.values[code], v.breaks),
-        fillOpacity: opacityAt(5, "stats"), // 全国を見ている「人数の分布」と同じ濃さ
-        selected: state.pref,
-        metric: Object.assign(base.metric, {
-          national: valueText(v.national),
-          extra: v.unallocated ? unallocText(v) : "",
-          top: codes.slice(0, 5).map((k) => ({ rank: rankOf(v.values, k), name: prefName[k], value: valueText(v.values[k]) })),
-          scale: scaleRows(v),
-          pick: state.pref ? `${prefName[state.pref]} ${valueText(v.values[state.pref])}${rank ? `（全国${rank}位／47）` : ""}` : "",
-        }),
-      });
-    }
-    // 選択した地域
-    const b = regionBounds();
+    const rank = state.pref ? rankOf(v.values, state.pref) : null;
+    return Object.assign(base, {
+      title: `都道府県別の${short(ind, v)}`,
+      subtitle: `国の統計：${ind.source_name.replace(/（e-Stat）$/, "")}・基準日 ${ind.period}`,
+      file: `nihongo-map_${ind.id}${v.id !== "all" ? "-" + v.id : ""}_japan_${dateStamp()}.png`,
+      fill: (code) => colorFor(v.values[code], v.breaks),
+      fillOpacity: opacityAt(5), // 全国を見ている「人数の分布」と同じ濃さ
+      selected: state.pref,
+      metric: Object.assign(base.metric, {
+        national: valueText(v.national),
+        extra: v.unallocated ? unallocText(v) : "",
+        top: topRows(v.values, "人"),
+        scale: scaleRows(v),
+        pick: state.pref ? `${prefName[state.pref]} ${valueText(v.values[state.pref])}${rank ? `（全国${rank}位／47）` : ""}` : "",
+      }),
+      foot: [base.statLine],
+      footExtra: "。色は都道府県ごとの人数（国の統計）で、学校の所在地とは別の情報です。",
+    });
+  }
+
+  // 画像用の地図データ（同じサイトの data/geo/。一度読んだら使い回す）
+  const geoCache = {};
+  function getJson(u) {
+    if (!geoCache[u]) geoCache[u] = fetch(u).then((r) => { if (!r.ok) throw new Error(u); return r.json(); }).catch((e) => { delete geoCache[u]; throw e; });
+    return geoCache[u];
+  }
+
+  function cityName() {
+    const s = state.city ? D.schools.find((x) => x.cc === state.city) : null;
+    return s ? s.c : "";
+  }
+
+  // C の共通部分（地図でもグラフでも同じ）
+  function regionBase(kind) {
+    const ind = indicator();
+    const v = variantOf(ind, state.variant);
+    const base = imageBase(kind);
+    const on = (s) => state.groups.has(s.g);
+    // 市区町村の画像では、都道府県全体の人数は「参考」として選んだときだけ入れる
+    const withStat = !state.city || $("img-ref").checked;
     const slug = ROMAJI[Number(state.pref) - 1] + (state.city ? "-" + state.city : "");
     return Object.assign(base, {
       title: regionLabel(),
-      subtitle: "学校の所在地と、都道府県の人数（国の統計）",
-      region: regionLabel(),
+      subtitle: `${typesText()}の所在地・学校の確認日 ${jpDate(D.generated)}`,
+      prefName: prefName[state.pref],
+      cityName: cityName(),
+      pref: state.pref,
+      city: state.city,
       file: `nihongo-map_${slug}_${dateStamp()}.png`,
-      bounds: { n: b.getNorth(), s: b.getSouth(), w: b.getWest(), e: b.getEast() },
-      selected: state.pref,
       rows: schoolRows(regionCounts()),
       unmapped: D.schools.filter((s) => inRegion(s) && on(s) && s.la == null).length,
-      points: D.schools.filter((s) => on(s) && s.la != null).map((s) => ({ la: s.la, ln: s.ln, g: s.g, rough: s.lv === 0, r: inRegion(s) })),
-      metric: Object.assign(base.metric, {
-        area: prefName[state.pref] + (state.city ? "全体" : ""),
+      metric: withStat ? Object.assign(base.metric, {
+        area: prefName[state.pref],
         value: valueText(v.values[state.pref]),
         rank: rankOf(v.values, state.pref),
-        city: !!state.city,
-      }),
+        ref: !!state.city,
+      }) : null,
+      foot: [base.schoolLine].concat(withStat ? [base.statLine] : []),
     });
+  }
+
+  // C：選択した地域の地図（市区町村の境界・線路・駅は、その範囲にかかる都道府県の分だけ読む）
+  async function regionSpec() {
+    const base = regionBase("region");
+    const [idx, own] = await Promise.all([getJson("data/geo/index.json"), getJson(`data/geo/p${state.pref}.json`)]);
+    let bb;
+    if (state.city) {
+      const c = own.cities.find((x) => x.c === state.city);
+      if (!c) throw new Error("city");
+      bb = c.mb;
+    } else {
+      const b = mainBounds(state.pref);
+      bb = [b.getSouth(), b.getWest(), b.getNorth(), b.getEast()];
+    }
+    const pad = state.city ? 0.07 : 0.05, dy = (bb[2] - bb[0]) * pad, dx = (bb[3] - bb[1]) * pad;
+    const bounds = { s: bb[0] - dy, w: bb[1] - dx, n: bb[2] + dy, e: bb[3] + dx };
+    // 枠の縦横に合わせて広がる分も含めて、かかる県を探す
+    const span = Math.max(bounds.n - bounds.s, (bounds.e - bounds.w) * 0.62);
+    const wide = { s: bounds.s - span, n: bounds.n + span, w: bounds.w - span * 1.7, e: bounds.e + span * 1.7 };
+    const codes = Object.keys(idx.prefs).filter((c) => c !== state.pref && idx.prefs[c].bbs.some((x) => x[0] <= wide.n && x[2] >= wide.s && x[1] <= wide.e && x[3] >= wide.w));
+    const others = await Promise.all(codes.map((c) => getJson(`data/geo/p${c}.json`)));
+    const on = (s) => state.groups.has(s.g);
+    const cityCounts = {};
+    D.schools.forEach((s) => { if (s.p === state.pref && on(s) && s.cc) cityCounts[s.cc] = (cityCounts[s.cc] || 0) + 1; });
+    const mb = mainBounds(state.pref).pad(0.04);
+    return Object.assign(base, {
+      bounds,
+      locator: state.city ? { n: mb.getNorth(), s: mb.getSouth(), w: mb.getWest(), e: mb.getEast() } : null,
+      local: [own].concat(others),
+      cityCounts,
+      points: D.schools.filter((s) => inRegion(s) && on(s) && s.la != null).map((s) => ({ la: s.la, ln: s.ln, g: s.g, rough: s.lv === 0 })),
+    });
+  }
+
+  // 地図データが読めないとき：校数のグラフ（都道府県なら学校の多い市区町村、市区町村なら種類ごと）
+  function chartSpec() {
+    const base = regionBase("chart");
+    const on = (s) => state.groups.has(s.g);
+    let bars, barsTitle;
+    if (state.city) {
+      barsTitle = `${regionLabel()}の学校の数（種類ごと）`;
+      bars = base.rows.filter((r) => state.groups.has(r.key)).map((r) => ({ name: GROUPS[r.key].label, n: r.n, color: GROUPS[r.key].color }));
+    } else {
+      const c = {};
+      D.schools.forEach((s) => { if (s.p === state.pref && on(s) && s.cc) c[s.cc] = c[s.cc] || { name: s.c, n: 0 }, c[s.cc].n++; });
+      bars = Object.values(c).sort((a, b) => b.n - a.n || a.name.localeCompare(b.name)).slice(0, 10);
+      barsTitle = `${prefName[state.pref]}で学校の多い市区町村（上位${bars.length}）`;
+    }
+    return Object.assign(base, { bars, barsTitle });
   }
 
   function imageKind() {
@@ -896,31 +984,27 @@
     const img = $("img-preview");
     const save = $("img-save");
     save.hidden = true;
+    $("img-ref-box").hidden = !(kind === "region" && state.city);
     $("img-status").textContent = "画像を作っています…";
     // 投稿文：全国の画像は全国の文、地域の画像は地域の文
     const text = kind === "region" ? regionShareText() : nationShareText();
     $("img-x").href = intentUrl(text);
     $("img-x-text").textContent = text;
     const fail = () => { if (job === imageJob) $("img-status").textContent = "画像を作れませんでした。ページを開き直してお試しください。"; };
-    setTimeout(() => {
-      try {
-        const spec = imageSpec(kind);
-        window.MapImage.render(spec).then((blob) => {
-          if (job !== imageJob) return;
-          if (imageUrl) URL.revokeObjectURL(imageUrl);
-          imageUrl = URL.createObjectURL(blob);
-          img.src = imageUrl;
-          img.alt = `保存する画像のプレビュー：${spec.title}`;
-          img.hidden = false;
-          save.href = imageUrl;
-          save.download = spec.file;
-          save.hidden = false;
-          $("img-status").textContent = `ファイル名：${spec.file}（1600×900ピクセル）`;
-        }).catch(fail);
-      } catch (e) {
-        fail();
-      }
-    }, 30);
+    let fallback = false;
+    const make = kind === "region" ? regionSpec().catch(() => { fallback = true; return chartSpec(); }) : new Promise((r) => setTimeout(() => r(imageSpec(kind)), 30));
+    make.then((spec) => window.MapImage.render(spec).then((blob) => {
+      if (job !== imageJob) return;
+      if (imageUrl) URL.revokeObjectURL(imageUrl);
+      imageUrl = URL.createObjectURL(blob);
+      img.src = imageUrl;
+      img.alt = `保存する画像のプレビュー：${spec.title}`;
+      img.hidden = false;
+      save.href = imageUrl;
+      save.download = spec.file;
+      save.hidden = false;
+      $("img-status").textContent = (fallback ? "地図データを読み込めなかったため、校数のグラフで作りました。" : "") + `ファイル名：${spec.file}（1600×900ピクセル）`;
+    })).catch(fail);
   }
 
   function openImage() {
@@ -929,7 +1013,9 @@
     const region = $("img-kinds").querySelector('input[value="region"]');
     region.disabled = !state.pref;
     $("img-kind-stats").textContent = `いま選んでいる統計「${short(ind, variantOf(ind, state.variant))}」の色分け`;
-    $("img-kind-region").textContent = state.pref ? `${regionLabel()}の地図・校数・人数` : "地域を選ぶと使えます";
+    $("img-kind-region").textContent = state.pref ? `${regionLabel()}の地図（境界・駅・学校の位置）と校数` : "地域を選ぶと使えます";
+    if (state.pref) $("img-ref-label").textContent = `参考として${prefName[state.pref]}全体の${short(ind, variantOf(ind, state.variant))}（国の統計）を入れる`;
+    $("img-ref").checked = false;
     const kind = state.pref ? "region" : state.view === "stats" ? "stats" : "schools";
     $("img-kinds").querySelector(`input[value="${kind}"]`).checked = true;
     $("img-saved").hidden = true;
@@ -945,7 +1031,8 @@
       total: D.schools.length,
       mapped: D.schools.filter((s) => s.la != null).length,
       zoom: map.getZoom(),
-      mode: map.hasLayer(bubbles) ? "県ごとの数" : map.hasLayer(cluster) ? "クラスタ" : "点なし",
+      mode: showCount() ? "県ごとの校数の色分け" : map.hasLayer(cluster) ? "学校の点" : "点なし",
+      clusters: map.hasLayer(cluster) ? (() => { let n = 0; cluster._featureGroup.eachLayer((l) => { if (l.getChildCount && map.getBounds().contains(l.getLatLng())) n++; }); return n; })() : 0,
       inCluster: cluster.getLayers().length,
       state: { pref: state.pref, city: state.city, groups: [...state.groups], view: state.view, layer: state.layer, variant: state.variant },
       fill: showFill(),
