@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>[[title]]</title>
+<meta name="description" content="[[desc]]">
+<meta name="theme-color" content="#79591F">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="[[site_name]]">
+<meta property="og:locale" content="ja_JP">
+<meta property="og:title" content="[[title]]">
+<meta property="og:description" content="[[desc]]">
+<meta property="og:url" content="[[page_url]]">
+<meta property="og:image" content="[[site_url]]ogp.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="icon" href="favicon.ico" sizes="any">
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+[[map_head]]
+<link rel="stylesheet" href="style.css?v=[[css]]">
+<style>nihon-site-nav:not(:defined){display:block;min-height:45px;padding:0 16px;background:#f4f6f6;border-bottom:1px solid #d5dcde;font:14px/44px system-ui,sans-serif}@media print{nihon-site-nav{display:none!important}}</style>
+</head>
+<body data-page="[[pid]]" data-site="[[site_url]]">
+<a class="skip" href="#main">本文へ移動</a>
+<nihon-site-nav><a href="https://yumaki5555.github.io/">日本を知る。</a></nihon-site-nav>
+<script src="https://yumaki5555.github.io/shared/site-nav.js" data-place="manual" async></script>
+<header class="site-head">
+  <a class="brand" href="index.html"><img src="favicon.svg" alt="" width="32" height="32"><span>[[site_name]]</span></a>
+  <nav class="site-menu" aria-label="このサイトのメニュー">[[nav]]<a href="{{report_url}}" target="_blank" rel="noopener">情報の訂正・お問い合わせ</a></nav>
+</header>
+<main id="main">
+[[body]]
+</main>
+<footer class="site-foot">
+  <p><b>[[site_name]]</b></p>
+  <p>国の公開資料をもとに作っています。国の機関が運営するサイトではありません。確認できない情報は推測で埋めません。<a href="sources.html">出典・利用条件</a>／<a href="{{report_url}}" target="_blank" rel="noopener">情報の訂正・お問い合わせ</a></p>
+  <p class="muted">最終確認：{{checked}}</p>
+</footer>
+[[map_foot]]
+</body>
+</html>

@@ -1,0 +1,20 @@
+<div class="wrap narrow">
+  <h1>ランキング</h1>
+  <p class="muted">学校の数と人数を、多い順に並べました。順位は数の多さだけを表します（地域への影響や学校の評価ではありません）。</p>
+  <div class="rk-tools">
+    <label class="rk-field">何を比べる？
+      <select id="rk-metric"></select></label>
+    <label class="rk-field">単位
+      <select id="rk-unit"><option value="pref">都道府県</option><option value="city">市区町村（学校の数のみ）</option></select></label>
+    <label class="rk-field" id="rk-pref-wrap">
+      <select id="rk-pref" aria-label="都道府県で絞り込む" hidden><option value="">全国</option></select></label>
+  </div>
+  <div class="rk-head"><h2 id="rk-title">読み込んでいます…</h2><a class="btn-x" id="rk-share" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" width="13" height="13" aria-hidden="true"><path fill="currentColor" d="M18.2 2.3h3.3l-7.2 8.2 8.5 11.2h-6.6l-5.2-6.8-6 6.8H1.7l7.7-8.8L1.3 2.3H8l4.7 6.2 5.5-6.2zm-1.2 17.5h1.8L7.1 4.1H5.1l11.9 15.7z"/></svg>Xに投稿</a></div>
+  <p class="fine" id="rk-info"></p>
+  <div class="tablewrap"><table class="plain rank">
+    <thead><tr><th scope="col" class="rk-no">順位</th><th scope="col">地域</th><th scope="col" class="num">数</th></tr></thead>
+    <tbody id="rk-body"></tbody>
+    <tfoot id="rk-foot"></tfoot>
+  </table></div>
+  <p class="fine">地域名を押すと、地図でその地域を開きます。別の統計どうしを足したり比べたりはできません。</p>
+</div>

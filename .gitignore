@@ -1,0 +1,5 @@
+__pycache__/
+*.pyc
+.claude/
+# ダウンロードした統計の元ファイルは入れない（scripts/fetch_stats.py で取り直せる）
+raw/

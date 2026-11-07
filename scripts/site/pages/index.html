@@ -1,0 +1,68 @@
+<div class="hero">
+  <h1><a href="index.html" title="全国の表示に戻る">日本語学校・留学生 全国マップ</a></h1>
+  <p class="sub">地域の学校の場所と、外国人留学生などの公的統計を地図で確認できます。</p>
+</div>
+<div class="controls">
+  <div class="ctl ctl-region">
+    <label for="sel-pref" class="ctl-title">地域を選ぶ・学校をさがす</label>
+    <div class="ctl-row">
+      <select id="sel-pref"><option value="">全国</option></select>
+      <select id="sel-city" aria-label="市区町村" hidden><option value="">全市区町村</option></select>
+      <div class="searchbox">
+        <input type="search" id="find" placeholder="学校名・住所・市区町村" aria-label="学校名・住所・市区町村で全国からさがす" autocomplete="off" role="combobox" aria-controls="find-results" aria-expanded="false">
+        <div id="find-results" hidden></div>
+      </div>
+    </div>
+  </div>
+  <details class="ctl" id="box-types" open>
+    <summary class="ctl-title">学校の種類<span class="ctl-now" id="now-types"></span></summary>
+    <div class="ctl-row checks" id="chk-types" role="group" aria-label="学校の種類"></div>
+  </details>
+  <details class="ctl" id="box-layer" open>
+    <summary class="ctl-title">人数の表示<span class="ctl-now" id="now-layer"></span></summary>
+    <div class="ctl-row">
+      <select id="sel-layer" aria-label="人数の表示"><option value="">色分けなし</option></select>
+      <select id="sel-variant" aria-label="人数の内訳" hidden></select>
+    </div>
+  </details>
+</div>
+<div class="layout">
+  <section class="mapsec" aria-label="地図">
+    <div class="mapwrap">
+      <div id="map"></div>
+      <div class="map-actions">
+        <button type="button" class="act" id="save-img"><svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path fill="currentColor" d="M12 3v11m0 0l-4.5-4.5M12 14l4.5-4.5" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 16v4h16v-4" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>画像を保存</button>
+        <a class="act" id="share" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" width="13" height="13" aria-hidden="true"><path fill="currentColor" d="M18.2 2.3h3.3l-7.2 8.2 8.5 11.2h-6.6l-5.2-6.8-6 6.8H1.7l7.7-8.8L1.3 2.3H8l4.7 6.2 5.5-6.2zm-1.2 17.5h1.8L7.1 4.1H5.1l11.9 15.7z"/></svg>Xに投稿</a>
+      </div>
+      <div id="layer-badge" hidden></div>
+    </div>
+    <div id="legend" aria-label="凡例"></div>
+  </section>
+  <section class="side" aria-label="選んだ地域の情報と学校一覧">
+    <div id="summary" aria-live="polite"><p class="muted">読み込んでいます…</p></div>
+    <div class="listbox">
+      <h2 id="list-title">学校一覧</h2>
+      <div class="list-tools">
+        <input type="search" id="q" placeholder="この一覧を絞り込む" aria-label="この一覧を学校名・住所・市区町村で絞り込む">
+        <select id="kind" aria-label="種類で絞り込む">
+          <option value="">すべての種類</option>
+          <option value="jp">日本語学校</option>
+          <option value="univ">大学</option>
+          <option value="jc">短大</option>
+          <option value="kosen">高専</option>
+          <option value="senmon">専門学校</option>
+        </select>
+      </div>
+      <p class="muted" id="list-count"></p>
+      <ul id="list" class="schools"></ul>
+      <p><button type="button" class="btn" id="more" hidden>さらに表示</button></p>
+    </div>
+  </section>
+</div>
+<dialog id="img-dialog" aria-labelledby="img-title">
+  <h2 id="img-title">画像を保存</h2>
+  <p class="fine" id="img-status"></p>
+  <img id="img-preview" alt="保存する画像のプレビュー" hidden>
+  <p class="fine">内容を確かめてから保存してください。画像はこの端末の中で作られ、どこにも送信されません。背景の地図は含まず、都道府県の境界と学校の点で描いています。</p>
+  <div class="img-acts"><a class="btn primary" id="img-save" hidden>PNGを保存</a><button type="button" class="btn" id="img-close">閉じる</button></div>
+</dialog>
