@@ -203,7 +203,9 @@
 
     $("save-img").addEventListener("click", openImage);
     $("img-close").addEventListener("click", () => $("img-dialog").close());
-    $("img-dialog").addEventListener("close", () => { if (imageUrl) URL.revokeObjectURL(imageUrl); imageUrl = ""; });
+    $("img-kinds").addEventListener("change", renderImage);
+    $("img-save").addEventListener("click", () => { $("img-saved").hidden = false; });
+    $("img-dialog").addEventListener("close", () => { imageJob++; $("img-preview").removeAttribute("src"); if (imageUrl) URL.revokeObjectURL(imageUrl); imageUrl = ""; });
 
     // スマホでは閉じて地図を優先し、PCでは常に開く
     const mq = window.matchMedia("(min-width: 900px)");
@@ -422,10 +424,10 @@
   }
 
   // 拡大するほど色を薄くして、町名や道路が読めるようにする（凡例の色も合わせる）。両方のときはさらに薄く
-  function fillOpacity() {
-    const z = map ? map.getZoom() : 5;
+  function fillOpacity() { return opacityAt(map ? map.getZoom() : 5, state.view); }
+  function opacityAt(z, view) {
     const o = z >= 12 ? 0.25 : z >= 10 ? 0.4 : z >= 8 ? 0.62 : 0.85;
-    return state.view === "both" ? Math.round(o * 60) / 100 : o;
+    return view === "both" ? Math.round(o * 60) / 100 : o;
   }
 
   function syncFill() {
@@ -513,6 +515,15 @@
     return L.latLngBounds(mainRing(f).map((c) => [c[1], c[0]]));
   }
 
+  // 選んだ地域を映す範囲（地図と保存画像で共用）。市区町村はその学校の点、都道府県はいちばん大きい陸地
+  function regionBounds() {
+    if (state.city) {
+      const pts = D.schools.filter((s) => s.cc === state.city && s.la != null).map((s) => [s.la, s.ln]);
+      if (pts.length) return L.latLngBounds(pts).pad(0.25);
+    }
+    return mainBounds(state.pref).pad(0.08);
+  }
+
   function applyRegion(move, animate) {
     const cs = $("sel-city");
     const opt = { animate: animate !== false };
@@ -530,11 +541,8 @@
       // 人数の分布では全国の色分けのまま、選んだ地域を太線で示す（全国に戻すときだけ全体を映す）
       if (state.view === "stats") {
         if (!state.pref) map.fitBounds(HOME, opt);
-      } else if (state.city) {
-        const pts = D.schools.filter((s) => s.cc === state.city && s.la != null).map((s) => [s.la, s.ln]);
-        if (pts.length) map.fitBounds(L.latLngBounds(pts).pad(0.25), Object.assign({ maxZoom: 14 }, opt));
       } else if (state.pref) {
-        map.fitBounds(mainBounds(state.pref).pad(0.08), opt);
+        map.fitBounds(regionBounds(), Object.assign({ maxZoom: 14 }, opt));
       } else {
         map.fitBounds(HOME, opt);
       }
@@ -563,11 +571,12 @@
     return prefName[state.pref];
   }
 
-  function regionCounts() {
+  function countsWhere(test) {
     const c = { jp: 0, univ: 0, jc: 0, kosen: 0, senmon: 0 };
-    D.schools.forEach((s) => { if (inRegion(s)) c[s.t]++; });
+    D.schools.forEach((s) => { if (test(s)) c[s.t]++; });
     return c;
   }
+  function regionCounts() { return countsWhere(inRegion); }
 
   function rankOf(values, code) {
     const n = values[code];
@@ -617,7 +626,7 @@
         <p class="fine">校数は国の一覧をもとに地図へ登録した学校の数です。大学・短大・高専・専門学校は本部・本校の所在地で数えています。日本語学校でもある専門学校は両方に数えるため、種類をまたいだ合計は出していません。</p></details>`;
     const nb = $("to-nation");
     if (nb) nb.addEventListener("click", () => { state.pref = ""; state.city = ""; state.limit = PAGE; $("sel-pref").value = ""; applyRegion(true); });
-    updateShare(c, higher);
+    updateShare();
   }
 
   // X の文字数の数え方（日本語は1文字2、URLは長さに関係なく23）
@@ -630,26 +639,40 @@
     return n;
   }
 
-  function updateShare(c, higher) {
-    const site = document.body.dataset.site;
-    const url = site + query();
-    const ind = state.view === "place" ? null : indicator();
+  // X に入る長さか（URL は長さに関係なく23）
+  const X_LIMIT = 280;
+  function fitsX(text, url) { return xLen(text.replace(url, "")) + 23 <= X_LIMIT; }
+
+  // 全国を見ているときの投稿文（改善指示書の文のまま）
+  function nationShareText() {
+    return `あなたの地域に、日本語学校・大学・専門学校はどこに、何校ある？\n\n全国の学校の所在地と、国の統計による留学生等の人数を地図で確認できます。\n\n【テスト運用中】\n${document.body.dataset.site}`;
+  }
+
+  // 地域を選んでいるときの投稿文：実際の校数・地域名・統計名から作り、長すぎたら統計の部分を短くする
+  function regionShareText() {
+    const url = document.body.dataset.site + query();
+    const c = regionCounts();
     const parts = [];
-    if (state.groups.has("jp")) parts.push(`日本語学校${fmt(c.jp)}校`);
-    if (state.groups.has("higher")) parts.push(`大学・短大・高専${fmt(higher)}校`);
-    if (state.groups.has("senmon")) parts.push(`専門学校${fmt(c.senmon)}校`);
-    let text = `${regionLabel()}の学校：${parts.join("、") || "種類を選択していません"}`;
-    if (ind) {
-      const v = variantOf(ind, state.variant);
-      const n = state.pref ? v.values[state.pref] : v.national;
-      text += `\n${state.pref ? prefName[state.pref] : "全国"}の${short(ind, v)}：${valueText(n)}（${ind.period}）`;
-    }
-    const tail = "\n日本語学校・留学生 全国マップ";
-    if (xLen(text + tail) + 24 <= 280) text += tail;
+    if (state.groups.has("jp")) parts.push(`日本語学校が${fmt(c.jp)}校`);
+    if (state.groups.has("higher")) parts.push(`大学・短大・高専が${fmt(c.univ + c.jc + c.kosen)}校`);
+    if (state.groups.has("senmon")) parts.push(`専門学校が${fmt(c.senmon)}校`);
+    const head = parts.length ? `${regionLabel()}には、${parts.join("、")}あります。` : `${regionLabel()}の学校の所在地を地図で確認できます。`;
+    const ind = indicator(), v = variantOf(ind, state.variant);
+    const n = v.values[state.pref];
+    const survey = (ind.source_name.match(/「(.+?)」/) || [])[1];
+    const what = `${prefName[state.pref]}${state.city ? "全体" : ""}の${short(ind, v)}は${valueText(n)}（${ind.period}）`;
+    const tail = `\n\n【テスト運用中】\n${url}`;
+    const options = n == null ? [head] : [`${head}\n国の統計（${survey}）では、${what}。`, `${head}\n国の統計では、${what}。`, head];
+    return options.map((t) => t + tail).find((t) => fitsX(t, url)) || head.slice(0, 100) + tail;
+  }
+
+  function intentUrl(text) { return "https://x.com/intent/post?text=" + encodeURIComponent(text); }
+
+  function updateShare() {
+    const text = state.pref ? regionShareText() : nationShareText();
     const a = $("share");
-    a.href = "https://x.com/intent/post?text=" + encodeURIComponent(text) + "&url=" + encodeURIComponent(url);
+    a.href = intentUrl(text);
     a.dataset.text = text;
-    a.dataset.url = url;
   }
 
   // ---- 学校一覧 ----
@@ -724,83 +747,157 @@
     }
   }
 
-  // ---- 画像保存 ----
-  // 選んだ地域の学校のうち、地図に写っていないものがあるか（校数は地域全体の数なので、画像に一言添える）
-  function imagePartial() {
-    if (useBubbles() && map.getBounds().contains(L.latLngBounds([[31, 130], [45, 145]]))) return false;
-    const b = map.getBounds();
-    return D.schools.some((s) => s.la != null && state.groups.has(s.g) && (!state.pref || s.p === state.pref) && (!state.city || s.cc === state.city) && !b.contains([s.la, s.ln]));
+  // ---- 画像保存（3種類） ----
+  // schools＝全国の学校分布／stats＝全国の人数分布／region＝選択した地域（地域を選んでいるときだけ）
+
+  function dateStamp() {
+    const d = new Date();
+    return `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, "0")}${String(d.getDate()).padStart(2, "0")}`;
   }
 
-  function imageSpec() {
-    const c = regionCounts();
-    const ind = state.view === "place" ? null : indicator();
-    const v = ind ? variantOf(ind, state.variant) : null;
-    const today = new Date();
-    const stamp = `${today.getFullYear()}${String(today.getMonth() + 1).padStart(2, "0")}${String(today.getDate()).padStart(2, "0")}`;
-    const slug = state.pref ? ROMAJI[Number(state.pref) - 1] + (state.city ? "-" + state.city : "") : "japan";
-    return {
+  // 学校一覧の根拠の機関名（「出入国在留管理庁「…」」の「の前）
+  function agencies() {
+    return [...new Set(D.bases.map((b) => b.name.split("「")[0]))].join("・");
+  }
+
+  function schoolRows(c) {
+    return [
+      { key: "jp", n: c.jp },
+      { key: "higher", n: c.univ + c.jc + c.kosen, sub: `大学${fmt(c.univ)}校／短大${fmt(c.jc)}校／高専${fmt(c.kosen)}校` },
+      { key: "senmon", n: c.senmon },
+    ];
+  }
+
+  function imageSpec(kind) {
+    const ind = indicator();
+    const v = variantOf(ind, state.variant);
+    const base = {
+      kind,
       siteName: document.body.dataset.name || "日本語学校・留学生 全国マップ",
       siteUrl: document.body.dataset.site,
-      region: regionLabel(),
       checked: D.generated,
-      file: `nihongo-map_${slug}_${stamp}.png`,
-      bounds: map.getBounds(),
-      bubbles: state.view !== "stats" && useBubbles(),
-      home: state.view !== "stats" && useBubbles() && map.getBounds().contains(L.latLngBounds([[31, 130], [45, 145]])),
-      partial: imagePartial(),
-      selected: state.pref,
+      agencies: agencies(),
       geo: GEO,
       rep: repPoint,
       relax,
       groups: GROUPS,
       on: state.groups,
-      points: D.schools.filter((s) => state.view !== "stats" && s.la != null && state.groups.has(s.g)).map((s) => ({ la: s.la, ln: s.ln, g: s.g, p: s.p, rough: s.lv === 0 })),
-      rows: [
-        { key: "jp", n: c.jp },
-        { key: "higher", n: c.univ + c.jc + c.kosen, sub: `大学${fmt(c.univ)}／短大${fmt(c.jc)}／高専${fmt(c.kosen)}` },
-        { key: "senmon", n: c.senmon },
-      ],
-      fill: showFill() ? (code) => colorFor(v.values[code], v.breaks) : null,
-      fillOpacity: fillOpacity(),
-      metric: ind ? {
-        label: short(ind, v),
-        value: valueText(state.pref ? v.values[state.pref] : v.national),
-        area: state.pref ? prefName[state.pref] + (state.city ? "全体" : "") : "全国",
-        extra: !state.pref && v.unallocated ? unallocText(v) : "",
-        period: ind.period,
-        note: ind.note,
-        source: ind.source_name,
-        scale: scaleRows(v),
-      } : null,
+      metric: { label: short(ind, v), period: ind.period, note: ind.note, source: ind.source_name },
     };
+    const on = (s) => state.groups.has(s.g);
+    if (kind === "schools") {
+      const c = countsWhere(() => true);
+      const unmapped = D.schools.filter((s) => on(s) && s.la == null).length;
+      const names = { jp: "日本語学校", higher: "大学", senmon: "専門学校" };
+      const picked = Object.keys(GROUPS).filter((k) => state.groups.has(k)).map((k) => names[k]);
+      return Object.assign(base, {
+        title: picked.length ? `全国の${picked.join("・")}の分布` : "全国の学校の分布",
+        file: `nihongo-map_schools_japan_${dateStamp()}.png`,
+        counts: prefCounts(),
+        rows: schoolRows(c),
+        metric: null,
+        notes: [
+          `地図の数字は、都道府県ごとの地図に位置を表示できる学校の数です${unmapped ? `（位置が分からない${fmt(unmapped)}校は含みません）` : ""}。`,
+          "大学・短大・高専・専門学校は本部・本校の所在地で数えています。",
+          "日本語学校でもある専門学校があるため、種類をまたいだ合計は出していません。",
+        ],
+      });
+    }
+    if (kind === "stats") {
+      const codes = Object.keys(v.values).filter((k) => v.values[k] != null).sort((a, b) => v.values[b] - v.values[a] || a.localeCompare(b));
+      const rank = state.pref ? rankOf(v.values, state.pref) : null;
+      return Object.assign(base, {
+        title: `都道府県別の${short(ind, v)}`,
+        subtitle: `基準日 ${ind.period}`,
+        file: `nihongo-map_${ind.id}${v.id !== "all" ? "-" + v.id : ""}_japan_${dateStamp()}.png`,
+        fill: (code) => colorFor(v.values[code], v.breaks),
+        fillOpacity: opacityAt(5, "stats"), // 全国を見ている「人数の分布」と同じ濃さ
+        selected: state.pref,
+        metric: Object.assign(base.metric, {
+          national: valueText(v.national),
+          extra: v.unallocated ? unallocText(v) : "",
+          top: codes.slice(0, 5).map((k) => ({ rank: rankOf(v.values, k), name: prefName[k], value: valueText(v.values[k]) })),
+          scale: scaleRows(v),
+          pick: state.pref ? `${prefName[state.pref]} ${valueText(v.values[state.pref])}${rank ? `（全国${rank}位／47）` : ""}` : "",
+        }),
+      });
+    }
+    // 選択した地域
+    const b = regionBounds();
+    const slug = ROMAJI[Number(state.pref) - 1] + (state.city ? "-" + state.city : "");
+    return Object.assign(base, {
+      title: regionLabel(),
+      subtitle: "学校の所在地と、都道府県の人数（国の統計）",
+      region: regionLabel(),
+      file: `nihongo-map_${slug}_${dateStamp()}.png`,
+      bounds: { n: b.getNorth(), s: b.getSouth(), w: b.getWest(), e: b.getEast() },
+      selected: state.pref,
+      rows: schoolRows(regionCounts()),
+      unmapped: D.schools.filter((s) => inRegion(s) && on(s) && s.la == null).length,
+      points: D.schools.filter((s) => on(s) && s.la != null).map((s) => ({ la: s.la, ln: s.ln, g: s.g, rough: s.lv === 0, r: inRegion(s) })),
+      metric: Object.assign(base.metric, {
+        area: prefName[state.pref] + (state.city ? "全体" : ""),
+        value: valueText(v.values[state.pref]),
+        rank: rankOf(v.values, state.pref),
+        city: !!state.city,
+      }),
+    });
   }
 
-  function openImage() {
-    const dlg = $("img-dialog");
+  function imageKind() {
+    const r = $("img-kinds").querySelector("input:checked");
+    return r ? r.value : "schools";
+  }
+
+  // 選んだ種類の画像を作ってプレビューに出す
+  let imageJob = 0;
+  function renderImage() {
+    const kind = imageKind();
+    const job = ++imageJob;
     const img = $("img-preview");
     const save = $("img-save");
-    img.hidden = true;
     save.hidden = true;
     $("img-status").textContent = "画像を作っています…";
-    dlg.showModal();
-    const spec = imageSpec();
+    // 投稿文：全国の画像は全国の文、地域の画像は地域の文
+    const text = kind === "region" ? regionShareText() : nationShareText();
+    $("img-x").href = intentUrl(text);
+    $("img-x-text").textContent = text;
+    const fail = () => { if (job === imageJob) $("img-status").textContent = "画像を作れませんでした。ページを開き直してお試しください。"; };
     setTimeout(() => {
       try {
+        const spec = imageSpec(kind);
         window.MapImage.render(spec).then((blob) => {
+          if (job !== imageJob) return;
           if (imageUrl) URL.revokeObjectURL(imageUrl);
           imageUrl = URL.createObjectURL(blob);
           img.src = imageUrl;
+          img.alt = `保存する画像のプレビュー：${spec.title}`;
           img.hidden = false;
           save.href = imageUrl;
           save.download = spec.file;
           save.hidden = false;
           $("img-status").textContent = `ファイル名：${spec.file}（1600×900ピクセル）`;
-        }).catch(() => { $("img-status").textContent = "画像を作れませんでした。ページを開き直してお試しください。"; });
+        }).catch(fail);
       } catch (e) {
-        $("img-status").textContent = "画像を作れませんでした。ページを開き直してお試しください。";
+        fail();
       }
     }, 30);
+  }
+
+  function openImage() {
+    const dlg = $("img-dialog");
+    const ind = indicator();
+    const region = $("img-kinds").querySelector('input[value="region"]');
+    region.disabled = !state.pref;
+    $("img-kind-stats").textContent = `いま選んでいる統計「${short(ind, variantOf(ind, state.variant))}」の色分け`;
+    $("img-kind-region").textContent = state.pref ? `${regionLabel()}の地図・校数・人数` : "地域を選ぶと使えます";
+    const kind = state.pref ? "region" : state.view === "stats" ? "stats" : "schools";
+    $("img-kinds").querySelector(`input[value="${kind}"]`).checked = true;
+    $("img-saved").hidden = true;
+    $("img-preview").hidden = true;
+    dlg.showModal();
+    $("img-kinds").querySelector("input:checked").focus(); // 矢印キーで種類を選び直せるよう、選ばれている種類に合わせる
+    renderImage();
   }
 
   // 動作確認用

@@ -21,7 +21,7 @@
 <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="stylesheet" href="vendor/leaflet.css"><link rel="stylesheet" href="vendor/markercluster-MarkerCluster.css">
-<link rel="stylesheet" href="style.css?v=8074ba1e">
+<link rel="stylesheet" href="style.css?v=7b53d19f">
 <style>nihon-site-nav:not(:defined){display:block;min-height:45px;padding:0 16px;background:#f4f6f6;border-bottom:1px solid #d5dcde;font:14px/44px system-ui,sans-serif}@media print{nihon-site-nav{display:none!important}}</style>
 </head>
 <body data-page="index" data-site="https://yumaki5555.github.io/nihongo-school-map/">
@@ -74,7 +74,7 @@
       <div id="map"></div>
       <div class="map-actions">
         <button type="button" class="act" id="save-img"><svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path fill="currentColor" d="M12 3v11m0 0l-4.5-4.5M12 14l4.5-4.5" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 16v4h16v-4" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>画像を保存</button>
-        <a class="act" id="share" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" width="13" height="13" aria-hidden="true"><path fill="currentColor" d="M18.2 2.3h3.3l-7.2 8.2 8.5 11.2h-6.6l-5.2-6.8-6 6.8H1.7l7.7-8.8L1.3 2.3H8l4.7 6.2 5.5-6.2zm-1.2 17.5h1.8L7.1 4.1H5.1l11.9 15.7z"/></svg>Xに投稿</a>
+        <a class="act" id="share" target="_blank" rel="noopener" title="投稿文の入ったXの画面を開きます。画像は付きません（「画像を保存」から保存して添付してください）"><svg viewBox="0 0 24 24" width="13" height="13" aria-hidden="true"><path fill="currentColor" d="M18.2 2.3h3.3l-7.2 8.2 8.5 11.2h-6.6l-5.2-6.8-6 6.8H1.7l7.7-8.8L1.3 2.3H8l4.7 6.2 5.5-6.2zm-1.2 17.5h1.8L7.1 4.1H5.1l11.9 15.7z"/></svg>Xに投稿</a>
       </div>
       <div id="layer-badge" hidden></div>
     </div>
@@ -104,10 +104,28 @@
 </div>
 <dialog id="img-dialog" aria-labelledby="img-title">
   <h2 id="img-title">画像を保存</h2>
-  <p class="fine" id="img-status"></p>
+  <fieldset class="img-kinds" id="img-kinds">
+    <legend>画像の種類（1600×900）</legend>
+    <label><input type="radio" name="img-kind" value="schools"><span><b>A 全国の学校分布</b><small>都道府県ごとの校数と、学校の種類ごとの全国の校数</small></span></label>
+    <label><input type="radio" name="img-kind" value="stats"><span><b>B 全国の人数分布</b><small id="img-kind-stats"></small></span></label>
+    <label><input type="radio" name="img-kind" value="region"><span><b>C 選択した地域</b><small id="img-kind-region"></small></span></label>
+  </fieldset>
+  <p class="fine" id="img-status" aria-live="polite"></p>
   <img id="img-preview" alt="保存する画像のプレビュー" hidden>
-  <p class="fine">内容を確かめてから保存してください。画像はこの端末の中で作られ、どこにも送信されません。背景の地図は含まず、都道府県の境界と学校の点で描いています。</p>
   <div class="img-acts"><a class="btn primary" id="img-save" hidden>PNGを保存</a><button type="button" class="btn" id="img-close">閉じる</button></div>
+  <p class="img-saved" id="img-saved" role="status" hidden>保存を始めました。保存先（「ダウンロード」や写真アプリなど）を確かめてから、下の手順でXに投稿できます。</p>
+  <section class="img-next" aria-labelledby="img-next-title">
+    <h3 id="img-next-title">保存した画像をXに投稿するには</h3>
+    <p class="img-warn"><b>画像は自動では添付されません。保存してからXで添付してください。</b></p>
+    <ol>
+      <li>「PNGを保存」で画像を保存する（スマホではプレビューを長押しして保存もできます）</li>
+      <li>「Xの投稿画面を開く」を押す（下の投稿文が入った画面が開きます）</li>
+      <li>Xの投稿画面の画像ボタンから、保存した画像を選ぶ</li>
+    </ol>
+    <p class="img-x-text" id="img-x-text"></p>
+    <p><a class="btn" id="img-x" target="_blank" rel="noopener">Xの投稿画面を開く</a></p>
+  </section>
+  <p class="fine">画像はこの端末の中で作られ、どこにも送信されません。背景の地図は含まず、都道府県の境界と学校の点で描いています。数字は画面と同じデータから作っています。</p>
 </dialog>
 
 </main>
@@ -116,6 +134,6 @@
   <p>国の公開資料をもとに作っています。国の機関が運営するサイトではありません。確認できない情報は推測で埋めません。<a href="sources.html">出典・利用条件</a>／<a href="https://docs.google.com/forms/d/e/1FAIpQLSeMRMh8OCG1ZClms-6yE_TXk7xcAizr5k9-E5q6iiOx2r2xMA/viewform" target="_blank" rel="noopener">情報の訂正・お問い合わせ</a></p>
   <p class="muted">最終確認：2026-11-07</p>
 </footer>
-<script src="vendor/leaflet.js"></script><script src="vendor/markercluster-leaflet.markercluster.js"></script><script src="map-image.js?v=f06b7df4"></script><script src="site.js?v=02a694bb"></script>
+<script src="vendor/leaflet.js"></script><script src="vendor/markercluster-leaflet.markercluster.js"></script><script src="map-image.js?v=f97868ed"></script><script src="site.js?v=ee2f68ad"></script>
 </body>
 </html>

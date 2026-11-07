@@ -144,6 +144,15 @@ ok("学校の所在地と国の統計を分けて見出しを付ける", "学校
 ok("統計は合算・単純比較できないと明記", "合算・単純比較できません" in sj, "")
 ok("色分けは学校ごとの人数でないと明記", "学校ごとの人数ではありません" in sj, "")
 
+# ---- 画像保存とX投稿（改善指示書の第3段階） ----
+ok("保存画像は3種類（全国の学校分布・全国の人数分布・選択した地域）", all(f'name="img-kind" value="{k}"' in ih for k in ("schools", "stats", "region")), "")
+ok("保存画像は1600×900", "W = 1600, H = 900" in img, "")
+ok("保存画像に基準日を入れる", img.count("基準日") >= 3, "")
+ok("全国の投稿文は指示書の文のまま", "あなたの地域に、日本語学校・大学・専門学校はどこに、何校ある？\\n\\n全国の学校の所在地と、国の統計による留学生等の人数を地図で確認できます。\\n\\n【テスト運用中】\\n${document.body.dataset.site}" in sj, "")
+ok("投稿文のURLが公開サイト", 'data-site="https://yumaki5555.github.io/nihongo-school-map/"' in ih, "")
+ok("画像が自動で添付されないと案内する", "画像は自動では添付されません。保存してからXで添付してください。" in ih, "")
+ok("地域の投稿文はXの文字数に収める", "X_LIMIT = 280" in sj and "fitsX" in sj, "")
+
 # ---- 入口サイトが読む形 ----
 ok("regions.json の形（prefs[県].n・cities・generated）", regions.get("generated") and len(regions["prefs"]) == 47 and all("n" in p and "cities" in p for p in regions["prefs"].values()), "")
 ok("regions の校数の合計＝日本語学校の校数", sum(p["n"] for p in regions["prefs"].values()) == cnt["jp"], "")

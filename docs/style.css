@@ -170,7 +170,23 @@ summary.ctl-title { cursor: pointer; display: list-item; min-height: 28px; }
 #img-dialog::backdrop { background: rgba(0, 0, 0, .55); }
 #img-dialog h2 { margin: 0 0 4px; }
 #img-preview { display: block; width: 100%; height: auto; border: 1px solid var(--line); border-radius: 6px; }
-.img-acts { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
+.img-acts { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; margin-top: 8px; }
+.img-kinds { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; margin: 6px 0 4px; padding: 0; border: 0; }
+.img-kinds legend { padding: 0; margin-bottom: 4px; font-weight: 600; color: var(--brand-dark); }
+.img-kinds label { display: flex; gap: 8px; align-items: flex-start; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--white); cursor: pointer; min-height: 44px; }
+.img-kinds label:has(input:checked) { border-color: var(--brand); box-shadow: 0 0 0 2px var(--brand) inset; background: var(--soft); }
+.img-kinds label:has(input:disabled) { opacity: .55; cursor: not-allowed; }
+.img-kinds input { margin-top: 4px; flex: none; }
+.img-kinds span { display: flex; flex-direction: column; min-width: 0; }
+.img-kinds small { color: var(--muted); font-size: .8rem; line-height: 1.4; }
+.img-saved { margin: 8px 0 0; padding: 8px 10px; border-radius: 8px; background: var(--soft); font-size: .9rem; }
+.img-next { margin-top: 10px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--white); }
+.img-next h3 { margin: 0 0 4px; font-size: 1rem; }
+.img-next ol { margin: 4px 0 6px; padding-left: 1.4em; font-size: .9rem; }
+.img-next p { margin: 4px 0; }
+.img-warn { color: var(--ink); }
+.img-x-text { white-space: pre-wrap; font-size: .85rem; color: var(--muted); padding: 6px 8px; border-left: 3px solid var(--line); background: var(--bg); }
+@media (max-width: 699px) { .img-kinds { grid-template-columns: 1fr; } }
 .btn.primary { background: var(--brand); color: var(--white); font-weight: 600; }
 .btn { min-height: 42px; display: inline-flex; align-items: center; }
 
