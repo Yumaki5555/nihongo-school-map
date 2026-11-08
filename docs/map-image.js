@@ -644,6 +644,81 @@ window.MapImage = (function () {
     });
   }
 
+  // 2都道府県の比較（縦長 1080×1350）。項目ごとに2本の横棒を描き、棒の長さはその項目の中だけでそろえる
+  // （ちがう資料の数を同じ物差しにしない）。棒の左に都道府県名を書くので凡例を見なくても分かる
+  const CMPC = { x: "#2A78D6", y: "#EB6834" };
+  function renderCompare(spec) {
+    const canvas = document.createElement("canvas");
+    canvas.width = RW; canvas.height = RH;
+    const ctx = canvas.getContext("2d");
+    const cw = RW - RM * 2;
+    ctx.fillStyle = RC.bg; ctx.fillRect(0, 0, RW, RH);
+    // 上：2つの都道府県名を大きく（色の四角を前に付ける）
+    const gap = " と ";
+    let p = 76;
+    const width = (q) => { ctx.font = font(q, true); const w = (t) => ctx.measureText(t).width; return q * 0.72 + 12 + w(spec.names.x) + w(gap) + q * 0.72 + 12 + w(spec.names.y); };
+    while (p > 44 && width(p) > cw) p -= 2;
+    let y = RM + p - 4;
+    let x = RM;
+    const chip = (side) => { const s = Math.round(p * 0.72); ctx.fillStyle = CMPC[side]; ctx.fillRect(x, y - s + Math.round(p * 0.06), s, s); x += s + 12; };
+    ctx.font = font(p, true);
+    chip("x"); ctx.fillStyle = RC.ink; ctx.fillText(spec.names.x, x, y); x += ctx.measureText(spec.names.x).width;
+    ctx.fillStyle = RC.muted; ctx.fillText(gap, x, y); x += ctx.measureText(gap).width;
+    ctx.font = font(p, true);
+    chip("y"); ctx.fillStyle = RC.ink; ctx.fillText(spec.names.y, x, y);
+    ctx.fillStyle = RC.muted; ctx.font = font(28, true);
+    y += 48; ctx.fillText(spec.subtitle, RM, y);
+    y += 22;
+    ctx.fillStyle = RC.line; ctx.fillRect(RM, y, cw, 2);
+    const top = y + 8;
+    // 下：出典・注意書き（省かずに全部）。いちばん下にサイト名と、この比較を開き直せるURL
+    const urlY = RH - 30;
+    ctx.font = font(22);
+    const notes = [];
+    spec.foot.forEach((t) => wrapJa(ctx, t, cw).forEach((l) => notes.push(l)));
+    const lh = 30;
+    const fy = urlY - 44 - (notes.length - 1) * lh;
+    ctx.fillStyle = RC.muted;
+    notes.forEach((l, i) => ctx.fillText(l, RM, fy + i * lh));
+    ctx.fillStyle = RC.url;
+    const url = (spec.pageUrl || spec.siteUrl).replace(/^https?:\/\//, "");
+    fitFont(ctx, url, cw, 22, 16, true);
+    ctx.fillText(url, RM, urlY);
+    const sepY = fy - 22 - 14;
+    ctx.fillStyle = RC.line; ctx.fillRect(RM, sepY, cw, 2);
+    // 中央：項目ごとに 見出し（右に「〇〇が約3.0倍」）・基準日など・2本の横棒
+    const n = spec.sections.length;
+    const per = (sepY - top) / Math.max(1, n);
+    ctx.font = font(30, true);
+    const nw = Math.max(...["x", "y"].map((s) => ctx.measureText(spec.names[s]).width));
+    spec.sections.forEach((sec, i) => {
+      const y0 = top + per * i;
+      if (i) { ctx.fillStyle = RC.rule; ctx.fillRect(RM, y0, cw, 2); }
+      ctx.font = font(30, true);
+      const tw = ctx.measureText(sec.tag).width;
+      ctx.fillStyle = RC.ink; ctx.textAlign = "right"; ctx.fillText(sec.tag, RW - RM, y0 + 42); ctx.textAlign = "left";
+      const tp = fitFont(ctx, sec.title, cw - tw - 24, 30, 20, true);
+      ctx.fillStyle = RC.ink; ctx.font = font(tp, true); ctx.fillText(sec.title, RM, y0 + 42);
+      ctx.fillStyle = RC.muted; fitFont(ctx, sec.sub, cw, 22, 17); ctx.fillText(sec.sub, RM, y0 + 74);
+      const rowsTop = y0 + 88, rh = Math.min(58, (per - 96) / 2);
+      ctx.font = font(30, true);
+      const vw = Math.max(...sec.bars.map((b) => ctx.measureText(b.value).width));
+      const x0 = RM + nw + 18, x1 = RW - RM - vw - 18;
+      const max = Math.max(1e-9, ...sec.bars.map((b) => (typeof b.n === "number" ? b.n : 0)));
+      sec.bars.forEach((b, j) => {
+        const cy = rowsTop + rh * (j + 0.5), base = cy + 11;
+        ctx.font = font(30, true); ctx.fillStyle = RC.ink; ctx.fillText(b.name, RM, base);
+        const w = typeof b.n === "number" && b.n > 0 ? Math.max(6, ((x1 - x0) * b.n) / max) : 0;
+        ctx.fillStyle = CMPC[b.side]; ctx.fillRect(x0, cy - rh * 0.32, w, rh * 0.64);
+        ctx.fillStyle = RC.value; ctx.textAlign = "right"; ctx.fillText(b.value, RW - RM, base); ctx.textAlign = "left";
+      });
+      ctx.fillStyle = RC.line; ctx.fillRect(x0 - 2, rowsTop + rh * 0.1, 2, rh * 1.8);
+    });
+    return new Promise((resolve, reject) => {
+      canvas.toBlob((b) => (b ? resolve(b) : reject(new Error("toBlob"))), "image/png");
+    });
+  }
+
   function drawHead(ctx, spec) {
     ctx.fillStyle = C.bg; ctx.fillRect(0, 0, W, H);
     ctx.fillStyle = C.accent; ctx.fillRect(0, 0, W, 8);
@@ -679,6 +754,7 @@ window.MapImage = (function () {
 
   function render(spec) {
     if (spec.kind === "ranking") return renderRanking(spec);
+    if (spec.kind === "compare") return renderCompare(spec);
     const canvas = document.createElement("canvas");
     canvas.width = W; canvas.height = H;
     const ctx = canvas.getContext("2d");

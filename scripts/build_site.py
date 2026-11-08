@@ -164,7 +164,7 @@ def build_pages(stats):
     pages = {
         "index": ("日本語学校・留学生 全国マップ", "地域の学校の場所と、外国人留学生などの公的統計を地図で確認できます。", "", True),
         "ranking": ("ランキング｜日本語学校・留学生 全国マップ", "都道府県と市区町村の学校の数、都道府県の人数を多い順に並べます。", "ランキング", False),
-        "compare": ("都道府県比較｜日本語学校・留学生 全国マップ", "2つの都道府県を選んで、学校の数と国の統計の人数を資料ごとに並べ、何倍ちがうかを色で示します。", "都道府県比較", False),
+        "compare": ("都道府県比較｜日本語学校・留学生 全国マップ", "2つの都道府県を選んで、学校の数と国の統計の人数を資料ごとに並べ、どちらが何倍多いかを示します。", "都道府県比較", False),
         "guide": ("3分でわかる 日本語学校と留学生", "地図の点と色の見方、3つの人数のちがいを短く説明します。", "3分でわかる", False),
         "sources": ("出典・利用条件", "地図で使っている資料、基準日、加工内容、利用条件をまとめています。", "出典", False),
     }
@@ -181,7 +181,7 @@ def build_pages(stats):
         if pid == "ranking":
             map_foot = f'<script src="map-image.js?v={hashes["map-image.js"]}"></script><script src="ranking.js?v={hashes["ranking.js"]}"></script>'
         if pid == "compare":
-            map_foot = f'<script src="compare.js?v={hashes["compare.js"]}"></script>'
+            map_foot = f'<script src="map-image.js?v={hashes["map-image.js"]}"></script><script src="compare.js?v={hashes["compare.js"]}"></script>'
         html = html.replace("[[map_head]]", map_head).replace("[[map_foot]]", map_foot)
         for k, v in repl.items():
             html = html.replace(k, v)

@@ -4,13 +4,13 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>都道府県比較｜日本語学校・留学生 全国マップ</title>
-<meta name="description" content="2つの都道府県を選んで、学校の数と国の統計の人数を資料ごとに並べ、何倍ちがうかを色で示します。">
+<meta name="description" content="2つの都道府県を選んで、学校の数と国の統計の人数を資料ごとに並べ、どちらが何倍多いかを示します。">
 <meta name="theme-color" content="#79591F">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="日本語学校・留学生 全国マップ">
 <meta property="og:locale" content="ja_JP">
 <meta property="og:title" content="都道府県比較｜日本語学校・留学生 全国マップ">
-<meta property="og:description" content="2つの都道府県を選んで、学校の数と国の統計の人数を資料ごとに並べ、何倍ちがうかを色で示します。">
+<meta property="og:description" content="2つの都道府県を選んで、学校の数と国の統計の人数を資料ごとに並べ、どちらが何倍多いかを示します。">
 <meta property="og:url" content="https://yumaki5555.github.io/nihongo-school-map/compare.html">
 <meta property="og:image" content="https://yumaki5555.github.io/nihongo-school-map/ogp.png">
 <meta property="og:image:width" content="1200">
@@ -21,7 +21,7 @@
 <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 
-<link rel="stylesheet" href="style.css?v=c6d86a0b">
+<link rel="stylesheet" href="style.css?v=866c2443">
 <style>nihon-site-nav:not(:defined){display:block;min-height:45px;padding:0 16px;background:#f4f6f6;border-bottom:1px solid #d5dcde;font:14px/44px system-ui,sans-serif}@media print{nihon-site-nav{display:none!important}}</style>
 </head>
 <body data-page="compare" data-site="https://yumaki5555.github.io/nihongo-school-map/">
@@ -35,23 +35,58 @@
 <main id="main">
 <div class="wrap narrow" id="compare">
   <h1>都道府県比較</h1>
-  <p class="muted">2つの都道府県を選ぶと、学校の数と国の統計の人数を、同じ資料・同じ基準日の数だけ資料ごとに横に並べます。資料によって対象と基準日が違うので、ちがう資料の行どうしは比べたり足したりできません。いちばん右の列は、同じ行の中で多いほうが少ないほうの何倍かです（10倍未満は小数第1位、10倍以上は整数に四捨五入）。多い側の色で塗り、開きが大きいほど濃くしています。</p>
-  <div class="rk-tools">
-    <label class="rk-field">1つ目の都道府県
-      <select id="cmp-a"></select></label>
-    <label class="rk-field">2つ目の都道府県
-      <select id="cmp-b"></select></label>
+  <p class="muted">2つの都道府県を選ぶと、学校の数と国の統計の人数を並べて、どちらが何倍多いかを示します。資料ごとに対象と基準日がちがうので、ちがう資料の行どうしは比べたり足したりできません。</p>
+  <p class="fine" id="cmp-loading">読み込んでいます…</p>
+  <p class="cmp-msg" id="cmp-error" role="alert" hidden>データを読み込めませんでした。通信の状態を確かめて、ページを開き直してください。</p>
+  <div id="cmp-main" hidden>
+    <div class="rk-tools cmp-tools">
+      <label class="rk-field">1つ目の都道府県
+        <select id="cmp-a"></select></label>
+      <button type="button" class="btn-x cmp-swap" id="cmp-swap" aria-label="1つ目と2つ目を入れ替える">⇄ 入れ替え</button>
+      <label class="rk-field">2つ目の都道府県
+        <select id="cmp-b"></select></label>
+    </div>
+    <p class="cmp-msg" id="cmp-same" role="status" hidden></p>
+    <div id="cmp-result">
+      <section class="cmp-say" id="cmp-say" aria-labelledby="cmp-say-title">
+        <div class="rk-head"><h2 id="cmp-say-title">比較のポイント</h2><div class="rk-acts"><button type="button" class="btn-x" id="cmp-img"><svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path fill="currentColor" d="M12 3v11m0 0l-4.5-4.5M12 14l4.5-4.5" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 16v4h16v-4" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>画像を保存</button><a class="btn-x" id="cmp-share" target="_blank" rel="noopener" title="投稿文の入ったXの画面を開きます。画像は付きません（「画像を保存」から保存して添付してください）"><svg viewBox="0 0 24 24" width="13" height="13" aria-hidden="true"><path fill="currentColor" d="M18.2 2.3h3.3l-7.2 8.2 8.5 11.2h-6.6l-5.2-6.8-6 6.8H1.7l7.7-8.8L1.3 2.3H8l4.7 6.2 5.5-6.2zm-1.2 17.5h1.8L7.1 4.1H5.1l11.9 15.7z"/></svg>Xで共有</a></div></div>
+        <ol class="cmp-points" id="cmp-points"></ol>
+        <p class="fine">表の数字から決まった手順で作った文です。倍率は多いほう÷少ないほうで、丸める前の値で計算しています。数の大きさをくらべているだけで、理由や、地域・学校の良し悪しは、この数からは分かりません。</p>
+      </section>
+      <div class="cmp-bar">
+        <p class="cmp-legend fine" id="cmp-legend"></p>
+        <label class="cmp-opt"><input type="checkbox" id="cmp-rank" checked> 全国の順位を表示</label>
+      </div>
+      <details class="cmp-how fine"><summary>表の見方</summary>
+        <p>「何倍？」は、同じ行の中で多いほう÷少ないほうです（10倍未満は小数第1位、10倍以上は整数に四捨五入。人口あたりも丸める前の値で計算）。四捨五入すると1.0倍になるときは「ほぼ同じ」と差を、片方が0のときは倍率を出さずに「—」と書きます。色は多い側（1つ目＝青、2つ目＝オレンジ）で、濃いほど開きが大きいことを表します（1.1倍〜・1.5倍〜・2倍〜・3倍〜）。少ないほうが5未満の行は、1つの違いで倍率が大きく動くので色を付けていません。全国の順位は多い順で、同じ数は同じ順位です（例：2位が2つあれば次は4位）。</p>
+      </details>
+      <div class="tablewrap"><table class="plain cmp-table" id="cmp-table" role="table">
+        <thead role="rowgroup"><tr role="row"><th scope="col" role="columnheader">項目</th><th scope="col" role="columnheader" class="num" id="cmp-ha"></th><th scope="col" role="columnheader" class="num" id="cmp-hb"></th><th scope="col" role="columnheader" class="num">何倍？</th></tr></thead>
+        <tbody id="cmp-body" role="rowgroup"></tbody>
+      </table></div>
+      <p class="fine">人数は国の統計の集計値で、学校ごとの人数ではありません。資料ごとの対象と基準日は<a href="sources.html">出典</a>にまとめています。全国の順位を一覧で見るときは<a href="ranking.html">ランキング</a>へ。</p>
+    </div>
   </div>
-  <p class="fine" id="cmp-error" hidden>データを読み込めませんでした。ページを開き直してください。</p>
-  <p class="fine" id="cmp-same" hidden>同じ都道府県を選んでいます。</p>
-  <div class="cmp-say" id="cmp-say" hidden></div>
-  <p class="cmp-legend fine" id="cmp-legend"></p>
-  <div class="tablewrap"><table class="plain cmp-table">
-    <thead><tr><th scope="col">項目</th><th scope="col" class="num" id="cmp-ha"></th><th scope="col" class="num" id="cmp-hb"></th><th scope="col" class="num">何倍？</th></tr></thead>
-    <tbody id="cmp-body"></tbody>
-  </table></div>
-  <p class="fine">人数は国の統計で、学校ごとの人数ではありません。資料ごとの対象と基準日は<a href="sources.html">出典</a>にまとめています。全国の順位を一覧で見るときは<a href="ranking.html">ランキング</a>へ。</p>
 </div>
+<dialog id="img-dialog" aria-labelledby="img-title">
+  <h2 id="img-title">画像を保存</h2>
+  <p class="fine">いま表示している2つの都道府県の比較を、Xに載せやすい縦長の画像（1080×1350）にします。</p>
+  <p class="fine" id="img-status" aria-live="polite"></p>
+  <img id="img-preview" class="img-portrait" alt="保存する画像のプレビュー" hidden>
+  <div class="img-acts"><a class="btn primary" id="img-save" hidden>PNGを保存</a><button type="button" class="btn" id="img-close">閉じる</button></div>
+  <p class="img-saved" id="img-saved" role="status" hidden>保存を始めました。保存先（「ダウンロード」や写真アプリなど）を確かめてから、下の手順でXに投稿できます。</p>
+  <section class="img-next" aria-labelledby="img-next-title">
+    <h3 id="img-next-title">保存した画像をXに投稿するには</h3>
+    <p class="img-warn"><b>画像は自動では添付されません。保存してからXで添付してください。</b></p>
+    <ol>
+      <li>「PNGを保存」で画像を保存する（スマホではプレビューを長押しして保存もできます）</li>
+      <li>「Xの投稿画面を開く」を押す（下の投稿文が入った画面が開きます）</li>
+      <li>Xの投稿画面の画像ボタンから、保存した画像を選ぶ</li>
+    </ol>
+    <p class="img-x-text" id="img-x-text"></p>
+    <p><a class="btn" id="img-x" target="_blank" rel="noopener">Xの投稿画面を開く</a></p>
+  </section>
+</dialog>
 
 </main>
 <footer class="site-foot">
@@ -60,6 +95,6 @@
   <p class="foot-links"><a href="sources.html">出典・利用条件</a><a href="https://docs.google.com/forms/d/e/1FAIpQLSeMRMh8OCG1ZClms-6yE_TXk7xcAizr5k9-E5q6iiOx2r2xMA/viewform" target="_blank" rel="noopener">情報の訂正・お問い合わせ</a></p>
   <p class="muted">最終確認：2026-11-07</p>
 </footer>
-<script src="compare.js?v=3112188e"></script>
+<script src="map-image.js?v=1b030825"></script><script src="compare.js?v=19f27518"></script>
 </body>
 </html>
