@@ -240,6 +240,8 @@ ok("ランキングの画像保存：5件・10件の切り替え（初期5件）
 ok("出典ページに人口あたりの計算式と分母の出典がある", rates and all(r["formula"] in sh and r["denominator"]["source_name"] in sh for r in rates), "")
 ok("2県比較はランキングのページにあり、トップには置かない", 'id="compare"' in rh and 'id="cmp-a"' in rh and 'id="cmp-b"' in rh and "cmp-a" not in ih, "")
 ok("2県比較は資料ごとに見出しと基準日を付け、ちがう資料は比べないと明記", "ind.period" in rj and "cmp-group" in rj and "ちがう資料の行どうしは比べたり足したりできません" in rh, "")
+ok("2県比較の「ひとことで」は決まった手順で作った文で、人口の割にの決め方と、理由や良し悪しは分からないことを明記", 'id="cmp-say"' in rh and "function sayCompare" in rj and "表の数字から決まった手順で作った文です" in rj and "それぞれの数を人口で割ってくらべたとき${CONC}倍以上ちがう項目です" in rj and "理由や、地域・学校の良し悪しは、この数からは分かりません" in rj, "")
+ok("2県比較の倍率は多い側の色で塗り、色の見方を表の上に出す", 'id="cmp-legend"' in rh and "cmp-ratio${lv ?" in rj and ".sx.lv4" in (DOCS / "style.css").read_text("utf8"), "")
 
 # ---- 入口サイトが読む形 ----
 ok("regions.json の形（prefs[県].n・cities・generated）", regions.get("generated") and len(regions["prefs"]) == 47 and all("n" in p and "cities" in p for p in regions["prefs"].values()), "")
