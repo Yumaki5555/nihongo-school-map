@@ -17,7 +17,7 @@ SCHOOLS = [s for s in json.loads((ROOT / "data" / "schools.json").read_text("utf
 STATS = json.loads((ROOT / "data" / "stats.json").read_text("utf8"))
 TYPE_LABEL = {"jp": "日本語学校", "univ": "大学", "jc": "短大", "kosen": "高専", "senmon": "専門学校"}
 HIGHER = ("univ", "jc", "kosen")
-FILES = ("site.js", "map-image.js", "ranking.js", "style.css")
+FILES = ("site.js", "map-image.js", "ranking.js", "compare.js", "style.css")
 # リンク点検で開けなかったURLの直し先（config/link_fixes.json）。null は公式サイトのリンクを出さない
 _fix = ROOT / "config" / "link_fixes.json"
 FIX = json.loads(_fix.read_text("utf8")) if _fix.exists() else {"website": {}, "address_basis": {}}
@@ -163,7 +163,8 @@ def build_pages(stats):
     hashes = {name: hashlib.md5((SITE / name).read_bytes().replace(b"\r\n", b"\n")).hexdigest()[:8] for name in FILES}
     pages = {
         "index": ("日本語学校・留学生 全国マップ", "地域の学校の場所と、外国人留学生などの公的統計を地図で確認できます。", "", True),
-        "ranking": ("ランキング｜日本語学校・留学生 全国マップ", "都道府県と市区町村の学校の数、都道府県の人数を多い順に並べ、2つの都道府県を比べられます。", "ランキング", False),
+        "ranking": ("ランキング｜日本語学校・留学生 全国マップ", "都道府県と市区町村の学校の数、都道府県の人数を多い順に並べます。", "ランキング", False),
+        "compare": ("都道府県比較｜日本語学校・留学生 全国マップ", "2つの都道府県を選んで、学校の数と国の統計の人数を資料ごとに並べ、何倍ちがうかを色で示します。", "都道府県比較", False),
         "guide": ("3分でわかる 日本語学校と留学生", "地図の点と色の見方、3つの人数のちがいを短く説明します。", "3分でわかる", False),
         "sources": ("出典・利用条件", "地図で使っている資料、基準日、加工内容、利用条件をまとめています。", "出典", False),
     }
@@ -171,7 +172,7 @@ def build_pages(stats):
         body = (SITE / "pages" / f"{pid}.html").read_text("utf8")
         nav = "".join(
             f'<a href="{p}.html"{" aria-current=\"page\"" if p == pid else ""}>{label}</a>'
-            for p, label in (("index", "地図"), ("ranking", "ランキング"), ("guide", "3分でわかる"), ("sources", "出典")))
+            for p, label in (("index", "地図"), ("ranking", "ランキング"), ("compare", "都道府県比較"), ("guide", "3分でわかる")))
         html = tpl.replace("[[title]]", title).replace("[[desc]]", desc).replace("[[pid]]", pid).replace("[[nav]]", nav).replace("[[body]]", body)
         html = html.replace("[[page_url]]", CFG["site_url"] + ("" if pid == "index" else f"{pid}.html")).replace("[[site_name]]", CFG["site_name"]).replace("[[site_url]]", CFG["site_url"])
         html = html.replace("[[css]]", hashes["style.css"]).replace("[[js]]", hashes["site.js"])
@@ -179,6 +180,8 @@ def build_pages(stats):
         map_foot = f'<script src="vendor/leaflet.js"></script><script src="vendor/markercluster-leaflet.markercluster.js"></script><script src="map-image.js?v={hashes["map-image.js"]}"></script><script src="site.js?v={hashes["site.js"]}"></script>' if with_map else ""
         if pid == "ranking":
             map_foot = f'<script src="map-image.js?v={hashes["map-image.js"]}"></script><script src="ranking.js?v={hashes["ranking.js"]}"></script>'
+        if pid == "compare":
+            map_foot = f'<script src="compare.js?v={hashes["compare.js"]}"></script>'
         html = html.replace("[[map_head]]", map_head).replace("[[map_foot]]", map_foot)
         for k, v in repl.items():
             html = html.replace(k, v)

@@ -1,6 +1,6 @@
 <div class="wrap narrow">
   <h1>ランキング</h1>
-  <p class="muted">学校の数と人数を、多い順に並べました。順位は数の多さだけを表します（地域への影響や学校の評価ではありません）。<a href="#compare">2つの都道府県をくらべる</a></p>
+  <p class="muted">学校の数と人数を、多い順に並べました。順位は数の多さだけを表します（地域への影響や学校の評価ではありません）。2つの都道府県を横に並べるときは<a href="compare.html">都道府県比較</a>へ。</p>
   <div class="rk-tools">
     <label class="rk-field">何を比べる？
       <select id="rk-metric"></select></label>
@@ -18,24 +18,6 @@
   </table></div>
   <p class="fine">地域名を押すと、地図でその地域を開きます。別の統計どうしを足したり比べたりはできません。</p>
 
-  <section class="cmp" id="compare" aria-labelledby="cmp-title">
-    <h2 id="cmp-title">2つの都道府県をくらべる</h2>
-    <p class="muted">同じ資料・同じ基準日の数だけを、資料ごとに横に並べます。資料によって対象と基準日が違うので、ちがう資料の行どうしは比べたり足したりできません。いちばん右の列は、同じ行の中で多いほうが少ないほうの何倍かです（10倍未満は小数第1位、10倍以上は整数に四捨五入）。多い側の色で塗り、開きが大きいほど濃くしています。</p>
-    <div class="rk-tools">
-      <label class="rk-field">1つ目の都道府県
-        <select id="cmp-a"></select></label>
-      <label class="rk-field">2つ目の都道府県
-        <select id="cmp-b"></select></label>
-    </div>
-    <p class="fine" id="cmp-same" hidden>同じ都道府県を選んでいます。</p>
-    <div class="cmp-say" id="cmp-say" hidden></div>
-    <p class="cmp-legend fine" id="cmp-legend"></p>
-    <div class="tablewrap"><table class="plain cmp-table">
-      <thead><tr><th scope="col">項目</th><th scope="col" class="num" id="cmp-ha"></th><th scope="col" class="num" id="cmp-hb"></th><th scope="col" class="num">何倍？</th></tr></thead>
-      <tbody id="cmp-body"></tbody>
-    </table></div>
-    <p class="fine">人数は国の統計で、学校ごとの人数ではありません。資料ごとの対象と基準日は<a href="sources.html">出典</a>にまとめています。</p>
-  </section>
 </div>
 <dialog id="img-dialog" aria-labelledby="img-title">
   <h2 id="img-title">画像を保存</h2>

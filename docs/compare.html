@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>都道府県比較｜日本語学校・留学生 全国マップ</title>
+<meta name="description" content="2つの都道府県を選んで、学校の数と国の統計の人数を資料ごとに並べ、何倍ちがうかを色で示します。">
+<meta name="theme-color" content="#79591F">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="日本語学校・留学生 全国マップ">
+<meta property="og:locale" content="ja_JP">
+<meta property="og:title" content="都道府県比較｜日本語学校・留学生 全国マップ">
+<meta property="og:description" content="2つの都道府県を選んで、学校の数と国の統計の人数を資料ごとに並べ、何倍ちがうかを色で示します。">
+<meta property="og:url" content="https://yumaki5555.github.io/nihongo-school-map/compare.html">
+<meta property="og:image" content="https://yumaki5555.github.io/nihongo-school-map/ogp.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="icon" href="favicon.ico" sizes="any">
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+
+<link rel="stylesheet" href="style.css?v=c6d86a0b">
+<style>nihon-site-nav:not(:defined){display:block;min-height:45px;padding:0 16px;background:#f4f6f6;border-bottom:1px solid #d5dcde;font:14px/44px system-ui,sans-serif}@media print{nihon-site-nav{display:none!important}}</style>
+</head>
+<body data-page="compare" data-site="https://yumaki5555.github.io/nihongo-school-map/">
+<a class="skip" href="#main">本文へ移動</a>
+<nihon-site-nav><a href="https://yumaki5555.github.io/">日本を知る。</a></nihon-site-nav>
+<script src="https://yumaki5555.github.io/shared/site-nav.js" data-place="manual" async></script>
+<header class="site-head">
+  <a class="brand" href="index.html"><img src="favicon.svg" alt="" width="32" height="32"><span>日本語学校・留学生 全国マップ</span></a>
+  <nav class="site-menu" aria-label="このサイトのメニュー"><a href="index.html">地図</a><a href="ranking.html">ランキング</a><a href="compare.html" aria-current="page">都道府県比較</a><a href="guide.html">3分でわかる</a></nav>
+</header>
+<main id="main">
+<div class="wrap narrow" id="compare">
+  <h1>都道府県比較</h1>
+  <p class="muted">2つの都道府県を選ぶと、学校の数と国の統計の人数を、同じ資料・同じ基準日の数だけ資料ごとに横に並べます。資料によって対象と基準日が違うので、ちがう資料の行どうしは比べたり足したりできません。いちばん右の列は、同じ行の中で多いほうが少ないほうの何倍かです（10倍未満は小数第1位、10倍以上は整数に四捨五入）。多い側の色で塗り、開きが大きいほど濃くしています。</p>
+  <div class="rk-tools">
+    <label class="rk-field">1つ目の都道府県
+      <select id="cmp-a"></select></label>
+    <label class="rk-field">2つ目の都道府県
+      <select id="cmp-b"></select></label>
+  </div>
+  <p class="fine" id="cmp-error" hidden>データを読み込めませんでした。ページを開き直してください。</p>
+  <p class="fine" id="cmp-same" hidden>同じ都道府県を選んでいます。</p>
+  <div class="cmp-say" id="cmp-say" hidden></div>
+  <p class="cmp-legend fine" id="cmp-legend"></p>
+  <div class="tablewrap"><table class="plain cmp-table">
+    <thead><tr><th scope="col">項目</th><th scope="col" class="num" id="cmp-ha"></th><th scope="col" class="num" id="cmp-hb"></th><th scope="col" class="num">何倍？</th></tr></thead>
+    <tbody id="cmp-body"></tbody>
+  </table></div>
+  <p class="fine">人数は国の統計で、学校ごとの人数ではありません。資料ごとの対象と基準日は<a href="sources.html">出典</a>にまとめています。全国の順位を一覧で見るときは<a href="ranking.html">ランキング</a>へ。</p>
+</div>
+
+</main>
+<footer class="site-foot">
+  <p><b>日本語学校・留学生 全国マップ</b></p>
+  <p>国の公開資料をもとに作っています。国の機関が運営するサイトではありません。確認できない情報は推測で埋めません。</p>
+  <p class="foot-links"><a href="sources.html">出典・利用条件</a><a href="https://docs.google.com/forms/d/e/1FAIpQLSeMRMh8OCG1ZClms-6yE_TXk7xcAizr5k9-E5q6iiOx2r2xMA/viewform" target="_blank" rel="noopener">情報の訂正・お問い合わせ</a></p>
+  <p class="muted">最終確認：2026-11-07</p>
+</footer>
+<script src="compare.js?v=3112188e"></script>
+</body>
+</html>

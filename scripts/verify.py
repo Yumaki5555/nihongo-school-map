@@ -238,11 +238,21 @@ sh = (DOCS / "sources.html").read_text("utf8")
 ok("ランキングの人口あたりは計算値と明記し、計算式と分子・分母の出典を出す", "計算値です（国の公表値ではありません）" in rj and "rt.formula" in rj and "分子 <a" in rj and "分母 <a" in rj, "")
 ok("ランキングの画像保存：5件・10件の切り替え（初期5件）、順位の意味・計算値・基準日を画像に書く", 'id="rk-img"' in rh and 'id="img-dialog"' in rh and 'data-top="5" aria-pressed="true"' in rh and 'data-top="10"' in rh and "map-image.js" in rh and "let imgTop = 5;" in rj and "順位は数の多さだけを表します" in rj and '"計算値です（国の公表値ではありません）")' in rj and "基準日 ${ind.period}" in rj, "")
 ok("出典ページに人口あたりの計算式と分母の出典がある", rates and all(r["formula"] in sh and r["denominator"]["source_name"] in sh for r in rates), "")
-ok("2県比較はランキングのページにあり、トップには置かない", 'id="compare"' in rh and 'id="cmp-a"' in rh and 'id="cmp-b"' in rh and "cmp-a" not in ih, "")
-ok("2県比較は資料ごとに見出しと基準日を付け、ちがう資料は比べないと明記", "ind.period" in rj and "cmp-group" in rj and "ちがう資料の行どうしは比べたり足したりできません" in rh, "")
-ok("2県比較の「ひとことで」は決まった手順で作った文で、理由や良し悪しは分からないことを明記", 'id="cmp-say"' in rh and "function sayCompare" in rj and "表の数字から決まった手順で作った文です" in rj and "理由や、地域・学校の良し悪しは、この数からは分かりません" in rj, "")
-ok("2県比較の「人口の割に」は人口と数え方がそろう行（人口あたりの分子）だけで判断し、学校・子どもは判断しないと明記", "PERKEYS.includes(key)" in rj and "人口と数え方がそろう在留資格「留学」の人数だけで判断" in rj and "学校の数や子どもの人数は、総人口とは数える対象がちがうので" in rj, "")
-ok("2県比較の倍率は多い側の色で塗り、色の見方を表の上に出す", 'id="cmp-legend"' in rh and "cmp-ratio${lv ?" in rj and ".sx.lv4" in (DOCS / "style.css").read_text("utf8"), "")
+cj = (DOCS / "compare.js").read_text("utf8")
+ch = (DOCS / "compare.html").read_text("utf8")
+ok("2県比較は「都道府県比較」のページにあり、トップとランキングには置かない（古いリンク #compare は案内）", 'id="cmp-a"' in ch and 'id="cmp-b"' in ch and "compare.js" in ch and "cmp-a" not in ih and "cmp-a" not in rh and 'location.hash === "#compare"' in rj and 'location.replace("compare.html"' in rj, "")
+ok("2県比較は資料ごとに見出しと基準日を付け、ちがう資料は比べないと明記", "ind.period" in cj and "cmp-group" in cj and "ちがう資料の行どうしは比べたり足したりできません" in ch, "")
+ok("2県比較の「ひとことで」は決まった手順で作った文で、理由や良し悪しは分からないことを明記", 'id="cmp-say"' in ch and "function sayCompare" in cj and "表の数字から決まった手順で作った文です" in cj and "理由や、地域・学校の良し悪しは、この数からは分かりません" in cj, "")
+ok("2県比較の「人口の割に」は人口と数え方がそろう行（人口あたりの分子）だけで判断し、学校・子どもは判断しないと明記", "PERKEYS.includes(key)" in cj and "人口と数え方がそろう在留資格「留学」の人数だけで判断" in cj and "学校の数や子どもの人数は、総人口とは数える対象がちがうので" in cj, "")
+ok("2県比較の倍率は多い側の色で塗り、色の見方を表の上に出す", 'id="cmp-legend"' in ch and "cmp-ratio${lv ?" in cj and ".sx.lv4" in (DOCS / "style.css").read_text("utf8"), "")
+_menus = {}
+for _pg in ("index", "ranking", "compare", "guide", "sources"):
+    _h = (DOCS / f"{_pg}.html").read_text("utf8")
+    _m = re.search(r'<nav class="site-menu"[^>]*>(.*?)</nav>', _h, re.S)
+    _f = re.search(r'<footer class="site-foot">(.*?)</footer>', _h, re.S)
+    _menus[_pg] = (re.findall(r">([^<]+)</a>", _m.group(1)) if _m else None, _f.group(1) if _f else "")
+ok("メニューは 地図・ランキング・都道府県比較・3分でわかる の順。出典とお問い合わせはメニューに入れず、どのページも下部にある",
+   all(m == ["地図", "ランキング", "都道府県比較", "3分でわかる"] and 'href="sources.html"' in f and "情報の訂正・お問い合わせ" in f for m, f in _menus.values()), str({k: v[0] for k, v in _menus.items()}))
 
 # ---- 入口サイトが読む形 ----
 ok("regions.json の形（prefs[県].n・cities・generated）", regions.get("generated") and len(regions["prefs"]) == 47 and all("n" in p and "cities" in p for p in regions["prefs"].values()), "")
