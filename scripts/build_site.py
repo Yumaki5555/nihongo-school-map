@@ -178,7 +178,7 @@ def build_pages(stats):
         map_head = '<link rel="stylesheet" href="vendor/leaflet.css"><link rel="stylesheet" href="vendor/markercluster-MarkerCluster.css">' if with_map else ""
         map_foot = f'<script src="vendor/leaflet.js"></script><script src="vendor/markercluster-leaflet.markercluster.js"></script><script src="map-image.js?v={hashes["map-image.js"]}"></script><script src="site.js?v={hashes["site.js"]}"></script>' if with_map else ""
         if pid == "ranking":
-            map_foot = f'<script src="ranking.js?v={hashes["ranking.js"]}"></script>'
+            map_foot = f'<script src="map-image.js?v={hashes["map-image.js"]}"></script><script src="ranking.js?v={hashes["ranking.js"]}"></script>'
         html = html.replace("[[map_head]]", map_head).replace("[[map_foot]]", map_foot)
         for k, v in repl.items():
             html = html.replace(k, v)

@@ -1,6 +1,7 @@
 /* 保存用の画像（PNG 1600×900）を端末の中だけで描く。種類：
    schools＝全国の学校分布（都道府県ごとの校数の色分け）／stats＝全国の人数分布（国の統計）／
-   region＝選択した地域（市区町村の境界・線路・駅・地名と学校の点）／chart＝地域の地図データが読めないときの校数のグラフ。
+   region＝選択した地域（市区町村の境界・線路・駅・地名と学校の点）／chart＝地域の地図データが読めないときの校数のグラフ／
+   ranking＝ランキングのページの上位（ranking.js が渡す。これだけ縦長 1080×1350）。
    地図タイルは使わない。境界・線路・駅は国土数値情報（国土交通省）を加工したデータで、site.js が同じサイトから読み込んで渡す。
    外部への通信はしない。数字はすべて site.js が画面と同じデータから渡す。
    スマホで縮めて見ても読めるよう、文字は大きめにする（いちばん小さい出典でも17px）。 */
@@ -534,6 +535,115 @@ window.MapImage = (function () {
     return 0;
   }
 
+  // ランキング（ranking.js が渡す）：縦長 1080×1350 の横棒グラフ。地名は左、数は右、棒の始まりはそろえる。
+  // 棒は画像に入れた中でいちばん大きい数に対する長さ（0より大きければ最低8px）。順位の数字や飾りは描かない
+  const RW = 1080, RH = 1350, RM = 48;
+  const RC = { bg: "#FFFDF8", ink: "#2B2621", muted: "#625A50", line: "#E2DBCF", rule: "#EFEAE1", bar: "#C8692A", value: "#7E3E14", url: "#7A5A3A" };
+
+  // 日本語の折り返し：数字・英字のまとまり（10,000、e-Stat など）は切らず、「。」「）」などは行の頭に置かない
+  function wrapJa(ctx, text, maxW) {
+    const lines = [];
+    let cur = "";
+    for (const t of text.match(/[0-9A-Za-z.,:\/-]+|./gu) || []) {
+      if (cur && ctx.measureText(cur + t).width > maxW && !/^[、。，．）」』・：]/.test(t)) { lines.push(cur); cur = t; } else cur += t;
+    }
+    if (cur) lines.push(cur);
+    return lines;
+  }
+
+  // 題名：1行に入らなければ、言葉の切れ目（空白・｜・「の」・」の後）で2行に分ける。いちばん大きく書ける分け方を選ぶ
+  function titleLines(ctx, text, cw) {
+    const best = (lines) => { for (let p = 58; p >= 40; p--) { ctx.font = font(p, true); if (lines.every((l) => ctx.measureText(l).width <= cw)) return p; } return 0; };
+    let pick = { lines: [text], p: best([text]) };
+    if (pick.p >= 46) return pick;
+    for (let i = 1; i < text.length; i++) {
+      if (!/[ ｜の」]/.test(text[i - 1])) continue;
+      const lines = [text.slice(0, i).trim(), text.slice(i).trim()];
+      const p = best(lines);
+      if (p > pick.p) pick = { lines, p };
+    }
+    if (!pick.p) { ctx.font = font(40, true); pick = { lines: wrapJa(ctx, text, cw).slice(0, 2), p: 40 }; }
+    return pick;
+  }
+
+  function renderRanking(spec) {
+    const canvas = document.createElement("canvas");
+    canvas.width = RW; canvas.height = RH;
+    const ctx = canvas.getContext("2d");
+    const cw = RW - RM * 2;
+    ctx.fillStyle = RC.bg; ctx.fillRect(0, 0, RW, RH);
+    // 上：短い題名（入らなければ2行）と、集計対象・確認日
+    let y = RM - 6;
+    const tt = titleLines(ctx, spec.title, cw);
+    ctx.fillStyle = RC.ink; ctx.font = font(tt.p, true);
+    tt.lines.forEach((l) => { y += Math.round(tt.p * 1.2); ctx.fillText(l, RM, y); });
+    ctx.fillStyle = RC.muted; ctx.font = font(27);
+    wrapJa(ctx, spec.subtitle, cw).forEach((l) => { y += 40; ctx.fillText(l, RM, y); });
+    y += 24;
+    ctx.fillStyle = RC.line; ctx.fillRect(RM, y, cw, 2);
+    const chartTop = y + 16;
+    // 下：出典・集計条件・注意書き（省かずに全部）。いちばん下にサイト名とURLを控えめに
+    const urlY = RH - 30;
+    ctx.font = font(23);
+    const notes = [];
+    spec.foot.forEach((t) => wrapJa(ctx, t, cw).forEach((l) => notes.push(l)));
+    const lh = 32;
+    const fy = urlY - 46 - (notes.length - 1) * lh;
+    ctx.fillStyle = RC.muted;
+    notes.forEach((l, i) => ctx.fillText(l, RM, fy + i * lh));
+    ctx.fillStyle = RC.url; ctx.font = font(20, true);
+    ctx.fillText(`${spec.siteName}（テスト運用中）`, RM, urlY);
+    ctx.textAlign = "right";
+    ctx.fillText(spec.siteUrl.replace(/^https?:\/\//, "").replace(/\/$/, ""), RW - RM, urlY);
+    ctx.textAlign = "left";
+    const sepY = fy - 23 - 18;
+    ctx.fillStyle = RC.line; ctx.fillRect(RM, sepY, cw, 2);
+    // 中央：横棒グラフ。5件より少なくても5件分の大きさで描く
+    const rows = spec.rows;
+    const pitch = Math.min(200, (sepY - 14 - chartTop) / Math.max(5, rows.length));
+    const fp = Math.round(Math.min(56, pitch * 0.46));
+    const bh = Math.round(Math.min(74, pitch * 0.5));
+    const pp = Math.round(fp * 0.6), pg = Math.round(fp * 0.25);
+    const nameW = (r) => {
+      ctx.font = font(fp, true);
+      let w = ctx.measureText(r.name).width;
+      if (r.pre) { ctx.font = font(pp); w += ctx.measureText(r.pre).width + pg; }
+      return w;
+    };
+    const nw = Math.min(cw * 0.42, Math.max(...rows.map(nameW)));
+    const vp = Math.round(fp * 1.04);
+    ctx.font = font(vp, true);
+    const vw = Math.max(...rows.map((r) => ctx.measureText(r.value).width));
+    const x0 = RM + nw + 24, x1 = RW - RM - vw - 22;
+    const max = Math.max(1e-9, ...rows.map((r) => r.n));
+    rows.forEach((r, i) => {
+      const cy = chartTop + pitch * (i + 0.5);
+      const base = cy + fp * 0.36;
+      if (i) { ctx.fillStyle = RC.rule; ctx.fillRect(RM, chartTop + pitch * i, cw, 1); }
+      // 地名（全国の市区町村は県名を小さく前に。長ければ全体を少し小さく）
+      const sc = Math.min(1, nw / nameW(r));
+      let x = RM;
+      if (r.pre) {
+        ctx.font = font(Math.round(pp * sc)); ctx.fillStyle = RC.muted;
+        ctx.fillText(r.pre, x, base);
+        x += ctx.measureText(r.pre).width + pg * sc;
+      }
+      ctx.font = font(Math.floor(fp * sc), true); ctx.fillStyle = RC.ink;
+      ctx.fillText(r.name, x, base);
+      // 棒
+      const w = r.n > 0 ? Math.max(8, ((x1 - x0) * r.n) / max) : 0;
+      ctx.fillStyle = RC.bar; ctx.fillRect(x0, cy - bh / 2, w, bh);
+      // 数（太字・右そろえ）
+      ctx.font = font(vp, true); ctx.fillStyle = RC.value; ctx.textAlign = "right";
+      ctx.fillText(r.value, RW - RM, base);
+      ctx.textAlign = "left";
+    });
+    ctx.fillStyle = RC.line; ctx.fillRect(x0 - 2, chartTop, 2, pitch * rows.length);
+    return new Promise((resolve, reject) => {
+      canvas.toBlob((b) => (b ? resolve(b) : reject(new Error("toBlob"))), "image/png");
+    });
+  }
+
   function drawHead(ctx, spec) {
     ctx.fillStyle = C.bg; ctx.fillRect(0, 0, W, H);
     ctx.fillStyle = C.accent; ctx.fillRect(0, 0, W, 8);
@@ -568,6 +678,7 @@ window.MapImage = (function () {
   }
 
   function render(spec) {
+    if (spec.kind === "ranking") return renderRanking(spec);
     const canvas = document.createElement("canvas");
     canvas.width = W; canvas.height = H;
     const ctx = canvas.getContext("2d");

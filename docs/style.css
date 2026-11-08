@@ -170,6 +170,12 @@ summary.ctl-title { cursor: pointer; display: list-item; min-height: 28px; }
 #img-dialog::backdrop { background: rgba(0, 0, 0, .55); }
 #img-dialog h2 { margin: 0 0 4px; }
 #img-preview { display: block; width: 100%; height: auto; border: 1px solid var(--line); border-radius: 6px; }
+#img-preview[hidden] { display: none; }
+#img-preview.img-portrait { max-width: 440px; margin: 0 auto; }
+.seg { display: inline-flex; margin: 2px 0 6px; border: 1px solid var(--brand); border-radius: 8px; overflow: hidden; }
+.seg button { min-height: 40px; padding: 4px 16px; border: 0; background: var(--white); color: var(--brand); font: inherit; font-weight: 600; cursor: pointer; }
+.seg button + button { border-left: 1px solid var(--brand); }
+.seg button[aria-pressed="true"] { background: var(--brand); color: var(--white); }
 .img-acts { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; margin-top: 8px; }
 .img-kinds { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; margin: 6px 0 4px; padding: 0; border: 0; }
 .img-kinds legend { padding: 0; margin-bottom: 4px; font-weight: 600; color: var(--brand-dark); }
@@ -197,6 +203,9 @@ summary.ctl-title { cursor: pointer; display: list-item; min-height: 28px; }
 #rk-pref-wrap:has(select[hidden]) { display: none; }
 .rk-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px 10px; }
 .rk-head h2 { margin: 0; }
+.rk-acts { display: flex; flex-wrap: wrap; gap: 6px; }
+button.btn-x { font: inherit; font-size: .85rem; cursor: pointer; }
+.btn-x:hover { background: var(--soft); }
 .rank .rk-no { width: 3em; text-align: right; white-space: nowrap; font-weight: 700; }
 .rk-bar { display: block; height: 6px; margin-top: 3px; background: var(--line-soft); border-radius: 3px; }
 .rk-bar i { display: block; height: 100%; background: #CC7629; border-radius: 3px; }

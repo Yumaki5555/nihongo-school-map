@@ -9,7 +9,7 @@
     <label class="rk-field" id="rk-pref-wrap">
       <select id="rk-pref" aria-label="都道府県で絞り込む" hidden><option value="">全国</option></select></label>
   </div>
-  <div class="rk-head"><h2 id="rk-title">読み込んでいます…</h2><a class="btn-x" id="rk-share" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" width="13" height="13" aria-hidden="true"><path fill="currentColor" d="M18.2 2.3h3.3l-7.2 8.2 8.5 11.2h-6.6l-5.2-6.8-6 6.8H1.7l7.7-8.8L1.3 2.3H8l4.7 6.2 5.5-6.2zm-1.2 17.5h1.8L7.1 4.1H5.1l11.9 15.7z"/></svg>Xに投稿</a></div>
+  <div class="rk-head"><h2 id="rk-title">読み込んでいます…</h2><div class="rk-acts"><button type="button" class="btn-x" id="rk-img"><svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path fill="currentColor" d="M12 3v11m0 0l-4.5-4.5M12 14l4.5-4.5" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 16v4h16v-4" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>画像を保存</button><a class="btn-x" id="rk-share" target="_blank" rel="noopener" title="投稿文の入ったXの画面を開きます。画像は付きません（「画像を保存」から保存して添付してください）"><svg viewBox="0 0 24 24" width="13" height="13" aria-hidden="true"><path fill="currentColor" d="M18.2 2.3h3.3l-7.2 8.2 8.5 11.2h-6.6l-5.2-6.8-6 6.8H1.7l7.7-8.8L1.3 2.3H8l4.7 6.2 5.5-6.2zm-1.2 17.5h1.8L7.1 4.1H5.1l11.9 15.7z"/></svg>Xに投稿</a></div></div>
   <p class="fine" id="rk-info"></p>
   <div class="tablewrap"><table class="plain rank">
     <thead><tr><th scope="col" class="rk-no">順位</th><th scope="col">地域</th><th scope="col" class="num">数</th></tr></thead>
@@ -35,3 +35,24 @@
     <p class="fine">人数は国の統計で、学校ごとの人数ではありません。資料ごとの対象と基準日は<a href="sources.html">出典</a>にまとめています。</p>
   </section>
 </div>
+<dialog id="img-dialog" aria-labelledby="img-title">
+  <h2 id="img-title">画像を保存</h2>
+  <p class="fine">いま表示しているランキングを、Xに載せやすい縦長の画像（1080×1350）にします。表の件数は変わりません。</p>
+  <div class="seg" id="img-top" role="group" aria-label="画像に入れる件数"><button type="button" data-top="5" aria-pressed="true">上位5件</button><button type="button" data-top="10" aria-pressed="false">上位10件</button></div>
+  <p class="fine" id="img-status" aria-live="polite"></p>
+  <img id="img-preview" class="img-portrait" alt="保存する画像のプレビュー" hidden>
+  <div class="img-acts"><a class="btn primary" id="img-save" hidden>PNGを保存</a><button type="button" class="btn" id="img-close">閉じる</button></div>
+  <p class="img-saved" id="img-saved" role="status" hidden>保存を始めました。保存先（「ダウンロード」や写真アプリなど）を確かめてから、下の手順でXに投稿できます。</p>
+  <section class="img-next" aria-labelledby="img-next-title">
+    <h3 id="img-next-title">保存した画像をXに投稿するには</h3>
+    <p class="img-warn"><b>画像は自動では添付されません。保存してからXで添付してください。</b></p>
+    <ol>
+      <li>「PNGを保存」で画像を保存する（スマホではプレビューを長押しして保存もできます）</li>
+      <li>「Xの投稿画面を開く」を押す（下の投稿文が入った画面が開きます）</li>
+      <li>Xの投稿画面の画像ボタンから、保存した画像を選ぶ</li>
+    </ol>
+    <p class="img-x-text" id="img-x-text"></p>
+    <p><a class="btn" id="img-x" target="_blank" rel="noopener">Xの投稿画面を開く</a></p>
+  </section>
+  <p class="fine">画像はこの端末の中で作られ、どこにも送信されません。数字は画面と同じデータから作っています。</p>
+</dialog>
