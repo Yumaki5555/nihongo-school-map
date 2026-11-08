@@ -278,7 +278,6 @@
     "nihongo:all": "日本語指導が必要な子ども", "nihongo:foreign": ["日本語指導が必要な外国籍の子ども", "外国籍"], "nihongo:japan": ["日本語指導が必要な日本国籍の子ども", "日本国籍"],
   };
   const shortOf = (i) => { const s = SHORT[i.key]; return Array.isArray(s) ? s[0] : s || i.full; };
-  const subOf = (i) => { const s = SHORT[i.key]; return Array.isArray(s) ? s[1] : i.label; };
   function level(q) { return !q.r || q.win === "near" ? 0 : 1 + STEPS.filter((v) => q.r >= v).length; }
   function popOf() { return (S.rates || []).map((r) => r.denominator).find((d) => d && d.values) || null; }
 
@@ -293,6 +292,8 @@
     let gName = "";
     const name = (w) => R.prefs[w === "x" ? a : b].name;
     const pop = popOf();
+    // 人口でくらべてよいのは、人口あたりの計算値（rates）の分子になっている行だけ（数え方が人口とそろうもの）
+    const PERKEYS = (S.rates || []).map((r) => `${r.numerator.indicator}:${r.numerator.variant}`);
     const P = pop && pop.values[a] > 0 && pop.values[b] > 0 ? pop.values[a] / pop.values[b] : null; // 人口の比（1つ目÷2つ目）
     const cell = (values, code, show) => `<td class="num">${show(values[code])}<small>全国${rankOf(values, code)}位</small></td>`;
     const group = (title, sub, gname) => { gName = gname || ""; return `<tr class="cmp-group"><th scope="colgroup" colspan="4">${esc(title)}<small>${sub}</small></th></tr>`; };
@@ -300,7 +301,7 @@
     const row = (label, values, show, full, key, ref) => {
       const x = values[a], y = values[b], q = rel(x, y);
       const k = P && x > 0 && y > 0 ? x / y / P : null; // 人口あたりにした比（1つ目÷2つ目）
-      const usable = !ref && k !== null && Math.min(x, y) >= SMALL;
+      const usable = !ref && PERKEYS.includes(key) && k !== null && Math.min(x, y) >= SMALL;
       const conc = usable ? (k >= CONC ? "x" : k <= 1 / CONC ? "y" : "") : "";
       let main = q.win === "near" ? "ほぼ同じ" : q.t, sub = "";
       if (q.win === "na") { main = "—"; sub = "数がありません"; }
@@ -324,7 +325,7 @@
     D.schools.forEach((s) => { if (cnt[s.t]) cnt[s.t][s.p]++; });
     let h = "";
     if (pop) {
-      h += group("人口（くらべる物差し）", `${esc(pop.source_name)}・基準日 ${esc(pop.period)}。下の項目の開きが、この人口の差より大きいかどうかで「人口の割に多い」を決めています。`, "");
+      h += group("人口（くらべる物差し）", `${esc(pop.source_name)}・基準日 ${esc(pop.period)}。在留資格「留学」の人数の開きが、この人口の差より大きいかどうかで「人口の割に多い」を決めています。学校の数や子どもの人数は、数える対象がちがうのでこの物差しを使いません。`, "");
       h += row("住民の数", pop.values, (n) => fmt(n) + "人", "住民の数", "pop", true);
     }
     h += group("学校の数", `国の一覧で数えた校数・確認日 ${esc(D.generated)}。大学・短大・高専・専門学校は本部・本校の所在地で数えています。`, "学校の数");
@@ -340,11 +341,11 @@
     $("cmp-body").innerHTML = h;
     $("cmp-same").hidden = a !== b;
     const sw = (s) => `<i class="cmp-sw">${[1, 2, 3, 4].map((l) => `<b class="s${s} lv${l}"></b>`).join("")}</i>`;
-    $("cmp-legend").innerHTML = `<span>${sw("x")}${esc(name("x"))}のほうが多い</span><span>${sw("y")}${esc(name("y"))}のほうが多い</span><span>色が濃いほど開きが大きい（左から1.1倍〜・1.5倍〜・2倍〜・3倍〜）。色なしは、ほぼ同じか、数が少なくて倍率が当てにならない行。★は、人口の差を物差しにしても多い項目。</span>`;
+    $("cmp-legend").innerHTML = `<span>${sw("x")}${esc(name("x"))}のほうが多い</span><span>${sw("y")}${esc(name("y"))}のほうが多い</span><span>色が濃いほど開きが大きい（左から1.1倍〜・1.5倍〜・2倍〜・3倍〜）。色なしは、ほぼ同じか、数が少なくて倍率が当てにならない行。★は、人口の割にも多いこと（留学生の行だけで判断）。</span>`;
     const say = a === b ? null : sayCompare(items, name, P);
     $("cmp-say").hidden = !say;
     $("cmp-say").innerHTML = say ? `<h3>ひとことで言うと</h3><p class="cmp-lead">${say.lead}</p><ul>${say.li.map((s) => `<li>${s}</li>`).join("")}</ul>`
-      + `<p class="fine">表の数字から決まった手順で作った文です（人が書いた解説ではありません）。「人口の割に多い」は、それぞれの数を人口で割ってくらべたとき${CONC}倍以上ちがう項目です。統計ごとに基準日が少しずつ違い、学校は本部・本校の所在地で数えているので、目安として見てください。少ないほうが${SMALL}未満の項目は、1つの違いで倍率が大きく動くため判断から外しています。数の大きさをくらべているだけで、なぜ多いのかという理由や、地域・学校の良し悪しは、この数からは分かりません。</p>` : "";
+      + `<p class="fine">表の数字から決まった手順で作った文です（人が書いた解説ではありません）。「人口の割に多い」は、人口と数え方がそろう在留資格「留学」の人数だけで判断し、住民1万人あたりにしたとき${CONC}倍以上ちがうときです（どちらも住んでいる都道府県で数え、基準日の差は1日）。数の大きさをくらべているだけで、なぜ多いのかという理由や、地域・学校の良し悪しは、この数からは分かりません。</p>` : "";
     syncUrl();
     window.__cmpCheck = { a, b, P, rows: check, x: say ? say.X : [], y: say ? say.Y : [], lead: say ? say.lead.replace(/<[^>]+>/g, "") : "", li: say ? say.li.map((s) => s.replace(/<[^>]+>/g, "")) : [] };
   }
@@ -362,52 +363,36 @@
     return { win: t === "1.0" ? "near" : side, side, r: Number(t), t: t + "倍" };
   }
 
-  // 「ひとことで」：人口を物差しにして、人口の差より大きく開いている項目だけを短く言う。
-  // 多い・少ないの言い直しはしない。理由や良し悪しは言わない
+  // 「ひとことで」：人口を物差しにして、留学生（人口と数え方がそろう行）が人口の差以上に開いているかを短く言う。
+  // 学校の数や子どもの人数は、総人口とは数える対象がちがうので判断しない（第4段階の決まり）。理由や良し悪しは言わない
   function sayCompare(items, name, P) {
     if (!P) return null;
-    const use = items.filter((i) => i.usable);
-    const strength = (i) => (i.conc === "x" ? i.k : 1 / i.k);
-    const by = (w) => use.filter((i) => i.conc === w).sort((p, q) => strength(q) - strength(p));
-    const X = by("x"), Y = by("y"), even = use.filter((i) => !i.conc);
-    const skipped = items.filter((i) => !i.ref && !i.usable && i.q.win !== "na");
-    const cut = (arr, n) => (arr.length > n ? arr.slice(0, n).join("、") + "など" : arr.join("、"));
-    // 合計とその内訳が同じ側に並ぶときは、合計にまとめて「（とくに◯◯）」と書く
-    const names = (list) => {
-      const out = [], seen = new Set();
-      list.forEach((i) => {
-        if (seen.has(i.key)) return;
-        const gi = i.g ? items.filter((j) => j.g === i.g && !j.ref) : [];
-        const tot = gi.find((j) => /:all$/.test(j.key));
-        const vars = gi.filter((j) => j !== tot);
-        if (tot && vars.length && list.includes(tot)) {
-          const vs = list.filter((j) => vars.includes(j));
-          const ok = vars.filter((j) => j.usable);
-          out.push(vs.length && vs.length < ok.length ? `${shortOf(tot)}（とくに${vs.map(subOf).join("・")}）` : shortOf(tot));
-          gi.forEach((j) => seen.add(j.key));
-          return;
-        }
-        out.push(shortOf(i));
-        seen.add(i.key);
-      });
-      return out;
-    };
-    const lead = [];
-    if (X.length) lead.push(`${esc(name("x"))}は人口の割に、<b>${esc(cut(names(X), 5))}</b>が多い。`);
-    if (Y.length) lead.push(`${esc(name("y"))}は人口の割に、<b>${esc(cut(names(Y), 5))}</b>が多い。`);
-    if (!lead.length) lead.push(use.length ? "どの項目も開きは人口の差と同じくらいで、<b>人口の大きさに見合った差</b>です。どちらかに特に集まっているものはありません。" : "数が少ない項目ばかりで、人口とくらべた判断はできません。");
     const pq = rel(P, 1);
     const popTx = pq.win === "x" || pq.win === "y" ? `${esc(name(pq.side))}が${pq.t}` : "ほぼ同じ";
-    // 根拠：その項目の倍率。人口の割に多い側と、数そのものが多い側が逆のときは「だけ」と書く
-    const ev = (i) => {
-      const t = i.q.win === "near" ? "ほぼ同じ" : i.q.side === i.conc ? i.q.t : `${esc(name(i.q.side))}が${i.q.t}だけ`;
-      return `${esc(shortOf(i))}（${t}）`;
-    };
-    const li = [`物差しの人口（住民の数）は、${popTx}です。`];
-    if (X.length) li.push(`<i class="cmp-dot sx"></i>人口の割に${esc(name("x"))}に多い：${cut(X.map(ev), 6)}`);
-    if (Y.length) li.push(`<i class="cmp-dot sy"></i>人口の割に${esc(name("y"))}に多い：${cut(Y.map(ev), 6)}`);
-    if (even.length && (X.length || Y.length)) li.push(`人口の差と同じくらい：${esc(cut(names(even), 6))}`);
-    if (skipped.length) li.push(`数が少ないので判断から外した項目：${esc(cut(skipped.map(shortOf), 4))}`);
-    return { lead: lead.join(""), li, X: X.map((i) => i.key), Y: Y.map((i) => i.key) };
+    const lead = [], li = [], X = [], Y = [];
+    (S.rates || []).forEach((r) => {
+      const raw = items.find((i) => i.key === `${r.numerator.indicator}:${r.numerator.variant}`);
+      const per = items.find((i) => i.key === "rate:" + r.id);
+      if (!raw || raw.q.win === "na") return;
+      const nm = esc(shortOf(raw));
+      if (!raw.usable) { lead.push(`${nm}の数が少ないので、人口とくらべた判断はできません。`); return; }
+      const rt = raw.q.win === "near" || raw.q.win === "eq" ? "ほぼ同じ" : `${esc(name(raw.q.side))}が${raw.q.t}`;
+      if (raw.conc) {
+        (raw.conc === "x" ? X : Y).push(raw.key);
+        const S2 = esc(name(raw.conc));
+        if (raw.q.win === raw.conc) lead.push(`${nm}は、人口の差（${popTx}）を超えて、<b>${S2}に集まっています</b>（${raw.q.t}）。`);
+        else if (raw.q.win === "x" || raw.q.win === "y") lead.push(`${nm}の数は${esc(name(raw.q.side))}のほうが多いものの（${raw.q.t}）、人口の差（${popTx}）ほどではなく、<b>人口の割には${S2}のほうが多い</b>です。`);
+        else lead.push(`${nm}の数はほぼ同じですが、人口は${popTx}なので、<b>人口の割には${S2}のほうが多い</b>です。`);
+      } else {
+        lead.push(`${nm}の差（${rt}）は、人口の差（${popTx}）とくらべて大きくは変わらず、<b>人口の割にどちらかに特に多いとまでは言えません</b>。`);
+      }
+      if (per && typeof per.x === "number" && typeof per.y === "number") {
+        const pt = per.q.win === "x" || per.q.win === "y" ? `${esc(name(per.q.side))}が${per.q.t}` : "ほぼ同じ";
+        li.push(`住民1万人あたりの${nm}：${esc(name("x"))} ${dec(per.x, r.digits)}人、${esc(name("y"))} ${dec(per.y, r.digits)}人（${pt}）`);
+      }
+    });
+    if (!lead.length) return null;
+    li.push("学校の数や子どもの人数は、総人口とは数える対象がちがうので、人口の割に多いかどうかは判断していません。開きの大きさは表の色で見てください。");
+    return { lead: lead.join(""), li, X, Y };
   }
 })();
