@@ -421,6 +421,8 @@ table.plain { width: 100%; border-collapse: collapse; font-size: .92rem; }
 .nj-tip[hidden] { display: none; }
 .nj-cmp { margin: 12px 0; padding: 10px 12px; background: var(--white); border: 1px solid var(--line-soft); border-radius: 8px; }
 .nj-cmp h3 { margin: 0 0 2px; }
+.nj-cmp-head { margin: 0 0 2px; }
+.nj-cmp-head h3 { margin: 0; }
 .nj-cmp-sub { margin: 0 0 8px; font-size: .9rem; color: var(--muted); }
 .nj-cmp-sub b { color: var(--ink); }
 .nj-cmp-label { margin: 0 0 4px; font-size: .86rem; font-weight: 700; color: var(--brand-dark); }

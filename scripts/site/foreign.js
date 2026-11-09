@@ -150,6 +150,10 @@
     $("nj-bd-acts").innerHTML = actButtons("bd");
     $("nj-img-trend").addEventListener("click", () => openImage("trend"));
     $("nj-img-bd").addEventListener("click", () => openImage("bd"));
+    $("nj-kpi-acts").innerHTML = actButtons("kpi");
+    $("nj-cmp-acts").innerHTML = actButtons("cmp");
+    $("nj-img-kpi").addEventListener("click", () => openImage("kpi"));
+    $("nj-img-cmp").addEventListener("click", () => openImage("cmp"));
     $("img-close").addEventListener("click", () => $("img-dialog").close());
     $("img-save").addEventListener("click", () => { $("img-saved").hidden = false; });
     $("img-page").addEventListener("click", (e) => { const b = e.target.closest("button[data-p]"); if (b) { imagePage = Number(b.dataset.p); renderImage(); } });
@@ -267,6 +271,30 @@
     const rest = ["compul", "second", "special"].map((t) => `${T[t].label} ${fmt(val(LATEST, c, t, "all"))}人`).join("・");
     const sp = val(LATEST, c, "special", "all");
     $("nj-kpi-note").textContent = `合計のうち公立 ${fmt(all[1])}人（${pctText(all[1], sum)}）・私立 ${fmt(all[2])}人（${pctText(all[2], sum)}）・国立 ${fmt(all[0])}人。合計には${rest}も含みます。高等学校は全日制・定時制です。地図の「外国籍の小中高校生」は特別支援学校を含まないため ${fmt(sum - sp)}人です。`;
+    setX("kpi", `外国籍の児童生徒（学校基本調査）｜${areaName(c)}・${LATEST}年\n合計 ${fmt(sum)}人\n${["elem", "mid", "high"].map((t) => `${T[t].short} ${fmt(val(LATEST, c, t, "all"))}人`).join("・")}\n${SITE_NAME}`, pageUrl("area"));
+  }
+
+  // 地域のデータ（数字のカード）の画像：合計（全幅）と6種類の学校、国立・公立・私立の割合の帯
+  function kpiSpec() {
+    const o = Y[LATEST], c = state.pref;
+    const all = trip(LATEST, c, "all"), sum = pick(all, "all");
+    const types = ["elem", "mid", "high", "compul", "second", "special"];
+    const tiles = [{ label: "合計（6種類の学校）", value: fmt(sum), unit: "人", sub: "", main: true }].concat(types.map((t) => {
+      const v = val(LATEST, c, t, "all");
+      return { label: T[t].label, value: v == null ? "—" : fmt(v), unit: v == null ? "" : "人", sub: v == null ? "" : `合計の${pctText(v, sum)}` };
+    }));
+    return [{
+      kind: "tiles", siteName: SITE_NAME, siteUrl: document.body.dataset.site,
+      title: "外国籍の児童生徒の数",
+      subtitle: [`${areaName(c)}・${LATEST}年（${o.fy}）${md(o.as_of)}現在・国立・公立・私立の学校`],
+      legend: [],
+      tiles,
+      bar: sum > 0 ? { caption: "国立・公立・私立の割合（青＝公立・緑＝私立・橙＝国立）", segs: [{ n: all[1], color: COLOR.p, label: `公立 ${pctText(all[1], sum)}` }, { n: all[2], color: COLOR.s, label: `私立 ${pctText(all[2], sum)}` }, { n: all[0], color: COLOR.k, label: `国立 ${pctText(all[0], sum)}` }] } : null,
+      facts: [`公立 ${fmt(all[1])}人（${pctText(all[1], sum)}）・私立 ${fmt(all[2])}人（${pctText(all[2], sum)}）・国立 ${fmt(all[0])}人（${pctText(all[0], sum)}）`],
+      foot: [srcLine(o, srcKeys(["all"], c)), FOOT_SCOPE, "高等学校は全日制・定時制。特別支援学校は幼稚部〜高等部の在学者数。"],
+      file: `gaikoku-jido_area_${c || "japan"}_${LATEST}_${dateStamp()}.png`,
+      label: "",
+    }];
   }
 
   // ---- A 人数の推移 ----
@@ -326,6 +354,8 @@
   function renderCompare(regs, L) {
     const a = state.a, b = state.b, areas = esc(regs.map(areaName).join("・"));
     state.cmpLines = [];
+    state.cmpNotes = [];
+    $("nj-cmp-acts").hidden = !a;
     if (!a) {
       $("nj-cmp-sub").innerHTML = `<b>${areas}</b>｜${esc(T[state.t].label)}`;
       $("nj-result").innerHTML = '<p class="cmp-msg">今の地域と学校の種類では、比べられる2つの年がありません。</p>';
@@ -353,6 +383,34 @@
     if ((state.t === "all" || state.t === "em") && a < TYPE.compul.from && b >= TYPE.compul.from) notes.push(`${a}年は義務教育学校がまだない年です（その子どもは小学校・中学校に数えられていました）。`);
     html += `<p class="fine nj-cnote">※${notes.join("")}</p>`;
     $("nj-result").innerHTML = html;
+    state.cmpNotes = notes;
+    setX("cmp", `外国籍の児童生徒（学校基本調査）は、どれくらい増えた？｜${regs.map(areaName).join("・")}の${T[state.t].short}\n${lines.join("\n")}\n${SITE_NAME}`, pageUrl("trend"));
+  }
+
+  // 2つの年の比較の画像：線（地域×区分）ごとに2本の横棒と人数の倍率
+  function cmpSpec() {
+    const a = state.a, b = state.b, regs = regions();
+    const groups = trendLines().map((l) => {
+      const va = val(a, l.c, state.t, l.k), vb = val(b, l.c, state.t, l.k), t = changeText(va, vb);
+      return {
+        name: (regs.length > 1 ? areaName(l.c) + "・" : "") + CMP_NAME[l.k],
+        color: COLOR[l.k], shade: SHADE[l.k],
+        rows: [{ label: `${a}年`, n: va || 0, value: val0(va) }, { label: `${b}年`, n: vb || 0, value: val0(vb) }],
+        ratio: t.na ? "データなし" : t.zero ? "算出できません" : t.ratio,
+        ratioNote: t.na ? `${va == null ? a : b}年の数がありません` : t.zero ? `${a}年が0人のため` : "",
+        lines: t.na ? [] : [`人数の変化 ${t.diff}`].concat(t.zero ? [] : [`増減率 ${t.pct}`]),
+      };
+    });
+    return [{
+      kind: "growth", siteName: SITE_NAME, siteUrl: document.body.dataset.site,
+      title: $("nj-cmp-title").textContent,
+      subtitle: [`${regs.map(areaName).join("・")}｜${a}年（${Y[a].fy}）→ ${b}年（${Y[b].fy}）`, T[state.t].label],
+      legend: [],
+      groups,
+      foot: [`出典：${SURVEY}（${Y[a].fy}・${Y[b].fy}。e-Statの表から作成）`, FOOT_SCOPE, "薄い色の棒が過去の年、濃い色の棒が新しい年。棒は0から、すべて同じ物差し。"].concat(state.cmpNotes, state.t === "high" || state.t === "all" ? ["高等学校は全日制・定時制。"] : []),
+      file: `gaikoku-jido_compare_${regs.join("-") || "japan"}_${state.t}_${state.s}_${a}-${b}_${dateStamp()}.png`,
+      label: "",
+    }];
   }
 
   function niceMax(v) {
@@ -824,13 +882,16 @@
     $("img-x").href = a.href;
     $("img-x-text").textContent = a.dataset.text;
     const D = state.bd;
-    $("img-what").textContent = which === "trend" ? "いま表示している推移のグラフを、Xに載せやすい縦長の画像（1080×1350）にします。" : `いま表示している${D.two ? D.prefix + "の2年比較" : VIEW[state.v]}のグラフを、縦長の画像（1080×1350）にします。${!D.two && state.v === "pref" && state.top === 47 ? "全47件は字が小さくならないよう、12件ずつ4枚に分けて保存します。" : ""}`;
+    $("img-what").textContent = which === "trend" ? "いま表示している推移のグラフを、Xに載せやすい縦長の画像（1080×1350）にします。"
+      : which === "kpi" ? `${areaName(state.pref)}の最新の人数（合計・学校の種類別・国立公立私立の割合）を、Xに載せやすい縦長の画像（1080×1350）にします。`
+      : which === "cmp" ? `いま表示している2つの年の比較（${state.a}年→${state.b}年）を、Xに載せやすい縦長の画像（1080×1350）にします。`
+      : `いま表示している${D.two ? D.prefix + "の2年比較" : VIEW[state.v]}のグラフを、縦長の画像（1080×1350）にします。${!D.two && state.v === "pref" && state.top === 47 ? "全47件は字が小さくならないよう、12件ずつ4枚に分けて保存します。" : ""}`;
     $("img-dialog").showModal();
     renderImage();
   }
 
   function renderImage() {
-    const specs = imageWhich === "trend" ? trendSpec() : barsSpecs();
+    const specs = imageWhich === "trend" ? trendSpec() : imageWhich === "kpi" ? kpiSpec() : imageWhich === "cmp" ? cmpSpec() : barsSpecs();
     const pg = $("img-page");
     pg.hidden = specs.length < 2;
     pg.innerHTML = specs.length > 1 ? specs.map((s, i) => `<button type="button" data-p="${i}" aria-pressed="${i === imagePage}">${esc(s.label)}</button>`).join("") : "";

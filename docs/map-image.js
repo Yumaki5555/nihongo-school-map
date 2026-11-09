@@ -556,11 +556,14 @@ window.MapImage = (function () {
     const best = (lines) => { for (let p = 58; p >= 40; p--) { ctx.font = font(p, true); if (lines.every((l) => ctx.measureText(l).width <= cw)) return p; } return 0; };
     let pick = { lines: [text], p: best([text]) };
     if (pick.p >= 46) return pick;
+    // 空白の切れ目（例：「東京都｜市区町村別」と「外国籍の子どもの数」の間）は、字が少し小さくなっても優先する
+    let score = pick.p;
     for (let i = 1; i < text.length; i++) {
       if (!/[ ｜の」]/.test(text[i - 1])) continue;
       const lines = [text.slice(0, i).trim(), text.slice(i).trim()];
       const p = best(lines);
-      if (p > pick.p) pick = { lines, p };
+      const s = p ? p + (text[i - 1] === " " ? 8 : 0) : 0;
+      if (s > score) { pick = { lines, p }; score = s; }
     }
     if (!pick.p) { ctx.font = font(40, true); pick = { lines: wrapJa(ctx, text, cw).slice(0, 2), p: 40 }; }
     return pick;
@@ -932,6 +935,135 @@ window.MapImage = (function () {
     return toPng(canvas);
   }
 
+  // 2つの年の比較（どれくらい増えた？）：まとまりごとに、名前・2本の横棒（過去は薄い色＋枠、新しい年は濃い色）・人数の倍率（大きく）・人数の変化と増減率。
+  // 棒は0から、全部の棒で同じ物差し。spec.groups：[{ name, color, shade, rows: [{ label, n, value }, …], ratio, ratioNote, lines }]
+  function renderGrowth(spec) {
+    const canvas = document.createElement("canvas");
+    canvas.width = RW; canvas.height = RH;
+    const ctx = canvas.getContext("2d");
+    const { top, bottom, cw } = portraitFrame(ctx, spec);
+    const G = spec.groups, n = G.length;
+    const max = Math.max(1e-9, ...G.flatMap((g) => g.rows.map((r) => r.n || 0)));
+    // 大きさ：1つのまとまりの高さに入るまで、全体を同じ割合で小さくする
+    const base = { hp: 40, bh: 80, rg: 22, yp: 38, sg: 34, sp: 32, rp: 116, gap: 40 };
+    const need = (k) => base.hp * k * 1.7 + (base.bh * k * 2 + base.rg * k) + base.sg * k + base.sp * k * 1.5 + base.rp * k;
+    const room = (bottom - top - 10 - base.gap * (n - 1)) / n;
+    let k = 1.35; // まとまりが1つのときは大きめに
+    while (k > 0.35 && need(k) > room) k -= 0.01;
+    // まとまりが多くて字が小さくなるときは、詰めた並べ方（名前の行の右に倍率、棒の下に変化と増減率を1行）にする
+    if (k < 0.7) return renderGrowthCompact(ctx, canvas, spec, top, bottom, cw, max);
+    const S = {}; Object.keys(base).forEach((key) => { S[key] = Math.round(base[key] * k); });
+    // 余った高さは、上に少し多めに（真ん中より少し上に置く）
+    const free = Math.max(0, bottom - top - 10 - need(k) * n - base.gap * (n - 1));
+    ctx.font = font(S.yp, true);
+    const lw = Math.max(...G.flatMap((g) => g.rows.map((r) => ctx.measureText(r.label).width)));
+    const vw = Math.max(...G.flatMap((g) => g.rows.map((r) => ctx.measureText(r.value).width)));
+    const x0 = RM + lw + 20, x1 = RW - RM - vw - 20;
+    let y = top + 10 + free * 0.4;
+    G.forEach((g, gi) => {
+      if (gi) { y += base.gap / 2; ctx.fillStyle = RC.rule; ctx.fillRect(RM, y, cw, 2); y += base.gap / 2; }
+      // 名前（色の四角＋名前。色だけに頼らない）
+      const sq = Math.round(S.hp * 0.75);
+      ctx.fillStyle = g.color; ctx.fillRect(RM, y + S.hp * 0.2, sq, sq);
+      ctx.fillStyle = RC.ink; fitFont(ctx, g.name, cw - sq - 14, S.hp, 22, true);
+      ctx.fillText(g.name, RM + sq + 14, y + S.hp * 0.95);
+      y += S.hp * 1.7;
+      g.rows.forEach((r, ri) => {
+        const past = ri < g.rows.length - 1;
+        ctx.font = font(S.yp, true); ctx.fillStyle = past ? RC.muted : RC.ink;
+        ctx.fillText(r.label, RM, y + S.bh / 2 + S.yp * 0.36);
+        if (r.n) {
+          const w = Math.max(4, ((x1 - x0) * r.n) / max);
+          ctx.fillStyle = past ? g.shade : g.color; ctx.fillRect(x0, y, w, S.bh);
+          if (past) { ctx.strokeStyle = g.color; ctx.lineWidth = 2; ctx.strokeRect(x0 + 1, y + 1, w - 2, S.bh - 2); }
+        }
+        ctx.font = font(S.yp, true); ctx.fillStyle = past ? RC.muted : RC.ink; ctx.textAlign = "right";
+        ctx.fillText(r.value, RW - RM, y + S.bh / 2 + S.yp * 0.36);
+        ctx.textAlign = "left";
+        y += S.bh + (past ? S.rg : 0);
+      });
+      ctx.fillStyle = RC.line; ctx.fillRect(x0 - 2, y - S.bh * 2 - S.rg, 2, S.bh * 2 + S.rg);
+      y += S.sg;
+      // 人数の倍率（数がないときは理由を書く）と、人数の変化・増減率
+      ctx.font = font(S.sp, true); ctx.fillStyle = RC.muted;
+      ctx.fillText(g.ratioNote ? "人数の倍率・増減率" : "人数の倍率", RM, y + S.sp);
+      const ry = y + S.sp * 1.5 + S.rp * 0.82;
+      const isNum = /倍$/.test(g.ratio);
+      ctx.fillStyle = RC.ink;
+      const rp = isNum ? S.rp : fitFont(ctx, g.ratio, cw * 0.45, Math.round(S.rp * 0.55), 22, true);
+      ctx.font = font(rp, true);
+      ctx.fillText(g.ratio, RM, ry);
+      const rw = ctx.measureText(g.ratio).width;
+      const sx = RM + Math.max(rw, cw * 0.3) + 48;
+      const side = (g.ratioNote ? [g.ratioNote] : []).concat(g.lines || []);
+      side.forEach((t, i) => {
+        ctx.fillStyle = i === 0 && g.ratioNote ? RC.muted : RC.ink;
+        fitFont(ctx, t, RW - RM - sx, S.sp, 18, true);
+        ctx.fillText(t, sx, ry - (side.length - 1 - i) * S.sp * 1.45);
+      });
+      y = ry + S.rp * 0.18;
+    });
+    return toPng(canvas);
+  }
+
+  function renderGrowthCompact(ctx, canvas, spec, top, bottom, cw, max) {
+    const G = spec.groups, n = G.length, gap = 26;
+    const base = { hp: 32, rp: 48, bh: 34, rg: 8, yp: 28, sp: 25 };
+    const need = (k) => Math.max(base.hp, base.rp) * k * 1.3 + base.bh * k * 2 + base.rg * k + 10 * k + base.sp * k * 1.6;
+    const room = (bottom - top - 10 - gap * (n - 1)) / n;
+    let k = 1.2;
+    while (k > 0.5 && need(k) > room) k -= 0.01;
+    const S = {}; Object.keys(base).forEach((key) => { S[key] = Math.round(base[key] * k); });
+    const free = Math.max(0, bottom - top - 10 - need(k) * n - gap * (n - 1));
+    ctx.font = font(S.yp, true);
+    const lw = Math.max(...G.flatMap((g) => g.rows.map((r) => ctx.measureText(r.label).width)));
+    const vw = Math.max(...G.flatMap((g) => g.rows.map((r) => ctx.measureText(r.value).width)));
+    const x0 = RM + lw + 18, x1 = RW - RM - vw - 18;
+    const lineH = Math.max(S.hp, S.rp) * 1.3;
+    let y = top + 10 + free * 0.4;
+    G.forEach((g, gi) => {
+      if (gi) { y += gap / 2; ctx.fillStyle = RC.rule; ctx.fillRect(RM, y, cw, 2); y += gap / 2; }
+      const base0 = y + lineH * 0.78;
+      // 右：人数の倍率（数がないときは「算出できません」など）
+      const isNum = /倍$/.test(g.ratio);
+      ctx.fillStyle = RC.ink; ctx.textAlign = "right";
+      const rp = isNum ? S.rp : Math.round(S.hp * 0.9);
+      ctx.font = font(rp, true); ctx.fillText(g.ratio, RW - RM, base0);
+      const rw = ctx.measureText(g.ratio).width;
+      ctx.font = font(Math.round(S.sp * 0.9), true); ctx.fillStyle = RC.muted;
+      const lab = isNum ? "人数の倍率" : "倍率・増減率";
+      ctx.fillText(lab, RW - RM - rw - 12, base0);
+      const labW = ctx.measureText(lab).width;
+      ctx.textAlign = "left";
+      // 左：色の四角＋名前
+      const sq = Math.round(S.hp * 0.75);
+      ctx.fillStyle = g.color; ctx.fillRect(RM, base0 - sq, sq, sq);
+      ctx.fillStyle = RC.ink; fitFont(ctx, g.name, cw - sq - 14 - rw - labW - 36, S.hp, 18, true);
+      ctx.fillText(g.name, RM + sq + 12, base0);
+      y += lineH;
+      g.rows.forEach((r, ri) => {
+        const past = ri < g.rows.length - 1;
+        ctx.font = font(S.yp, true); ctx.fillStyle = past ? RC.muted : RC.ink;
+        ctx.fillText(r.label, RM, y + S.bh / 2 + S.yp * 0.36);
+        if (r.n) {
+          const w = Math.max(4, ((x1 - x0) * r.n) / max);
+          ctx.fillStyle = past ? g.shade : g.color; ctx.fillRect(x0, y, w, S.bh);
+          if (past) { ctx.strokeStyle = g.color; ctx.lineWidth = 2; ctx.strokeRect(x0 + 1, y + 1, w - 2, S.bh - 2); }
+        }
+        ctx.fillStyle = past ? RC.muted : RC.ink; ctx.textAlign = "right";
+        ctx.fillText(r.value, RW - RM, y + S.bh / 2 + S.yp * 0.36); ctx.textAlign = "left";
+        y += S.bh + (past ? S.rg : 0);
+      });
+      ctx.fillStyle = RC.line; ctx.fillRect(x0 - 2, y - S.bh * 2 - S.rg, 2, S.bh * 2 + S.rg);
+      y += 10 * k;
+      const line = (g.ratioNote ? [g.ratioNote] : []).concat(g.lines || []).join("・");
+      ctx.fillStyle = RC.muted; fitFont(ctx, line, cw - (x0 - RM), S.sp, 16, true);
+      ctx.fillText(line, x0, y + S.sp);
+      y += S.sp * 1.6;
+    });
+    return toPng(canvas);
+  }
+
   // 推移の折れ線：横軸は調査年（年の間隔どおり）、縦軸は0から。点は調査をした年だけ。データのない年は線でつながない
   function renderTrend(spec) {
     const canvas = document.createElement("canvas");
@@ -1032,6 +1164,7 @@ window.MapImage = (function () {
     if (spec.kind === "compare") return renderCompare(spec);
     if (spec.kind === "bars") return renderBars(spec);
     if (spec.kind === "tiles") return renderTiles(spec);
+    if (spec.kind === "growth") return renderGrowth(spec);
     if (spec.kind === "trend") return renderTrend(spec);
     const canvas = document.createElement("canvas");
     canvas.width = W; canvas.height = H;

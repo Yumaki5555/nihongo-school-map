@@ -20,6 +20,16 @@
     c6: { i: 5, label: "⑥その他", short: "⑥その他", color: "#7A4FA0" },
     pos: { label: "不就学の可能性（国の数え方：③＋⑤＋⑦・全国のみ）", short: "不就学の可能性（③＋⑤＋⑦）", color: "#8A2E24" },
   };
+  // 順位の画像の題名（「東京都｜市区町村別 外国人学校に通う外国籍の子どもの数」の形。区分の番号だけでは伝わらないので言葉で書く）
+  const RANK_WHAT = {
+    juki: "外国籍の子どもの数（小・中学校の年齢）",
+    c1: "日本の小・中学校などに通う外国籍の子どもの数",
+    c2: "外国人学校に通う外国籍の子どもの数",
+    c3: "学校に通っていない外国籍の子どもの数（不就学）",
+    c4: "転居・出国した外国籍の子どもの数（予定を含む）",
+    c5: "就学状況を確認できない外国籍の子どもの数",
+    c6: "就学状況が「その他」の外国籍の子どもの数",
+  };
   const PARTS = ["c1", "c2", "c3", "c4", "c5", "c6"];
   const TREND_CATS = ["juki"].concat(PARTS, ["pos"]);
   const RANK_CATS = ["juki"].concat(PARTS);
@@ -600,7 +610,7 @@
         share = `上位${n}${sc.unit}（${pos.slice(0, n).map((r) => r.name).join("・")}）の合計${fmt(sum)}人は、${sc.kind === "pref" ? "全国" : N.prefs[sc.parent]}の${CATS[k].short}${fmt(parentV)}人の${pctText(sum, parentV)}です。`;
       }
       const known = sc.kind === "pref" ? knownFor([y], PREF_CODES, [k]) : share ? knownFor([y], [sc.parent], [k]) : [];
-      return { kind: "rank", sc, y, k, rows, all, extra, zeros, msgs, notes, bnotes, known, share, title: `${CATS[k].short}の${sc.label}`, head: `${sc.label}・${CATS[k].label}が多い順（${yLabel(y)}）` };
+      return { kind: "rank", sc, y, k, rows, all, extra, zeros, msgs, notes, bnotes, known, share, title: `${sc.kind === "pref" ? "全国" : N.prefs[sc.parent]}｜${sc.unit}別 ${RANK_WHAT[k]}`, head: `${sc.label}・${CATS[k].label}が多い順（${yLabel(y)}）` };
     }
     const two = state.mode === "two";
     if (two) {
@@ -818,7 +828,7 @@
         const range = chunks.length > 1 ? `${rows[0].rank}〜${rows[rows.length - 1].rank}位` : "";
         return Object.assign({}, base, {
           title: D.title,
-          subtitle: [`${yLabel(D.y)}・${CATS[D.k].label}が多い順${range ? "・" + range : ""}`],
+          subtitle: [`${yLabel(D.y)}・人数が多い順${range ? "・" + range : ""}`, `調査の区分：${CATS[D.k].label}`],
           legend: [],
           rows: rows.map((r) => ({ name: `${r.rank}位 ${r.name}`, segs: [{ n: r.v || 0, color: CATS[D.k].color }], value: fmt(r.v) + "人", sub: D.k === "juki" ? "" : `住民票上の人数 ${fmt(r.juki)}人` })),
           max,
