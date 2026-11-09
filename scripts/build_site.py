@@ -172,8 +172,9 @@ def build_pages(stats):
     for pid, (title, desc, _nav, with_map) in pages.items():
         body = (SITE / "pages" / f"{pid}.html").read_text("utf8")
         nav = "".join(
-            f'<a href="{p}.html"{" aria-current=\"page\"" if p == pid else ""}>{label}</a>'
-            for p, label in (("index", "地図"), ("ranking", "ランキング"), ("compare", "都道府県比較"), ("nihongo", "日本語指導"), ("guide", "3分でわかる")))
+            f'<a href="{p}.html"{" aria-current=\"page\"" if p == pid else ""}><span>{label}</span></a>'
+            # <wbr> はスマホでメニューを1行におさめるときに2行に折ってよい位置（CSS の word-break: keep-all と組み合わせる）
+            for p, label in (("index", "地図"), ("ranking", "ランキング"), ("compare", "都道府県<wbr>比較"), ("nihongo", "日本語<wbr>指導"), ("guide", "3分で<wbr>わかる")))
         html = tpl.replace("[[title]]", title).replace("[[desc]]", desc).replace("[[pid]]", pid).replace("[[nav]]", nav).replace("[[body]]", body)
         html = html.replace("[[page_url]]", CFG["site_url"] + ("" if pid == "index" else f"{pid}.html")).replace("[[site_name]]", CFG["site_name"]).replace("[[site_url]]", CFG["site_url"])
         html = html.replace("[[css]]", hashes["style.css"]).replace("[[js]]", hashes["site.js"])

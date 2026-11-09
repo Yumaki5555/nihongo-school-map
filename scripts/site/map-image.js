@@ -732,9 +732,15 @@ window.MapImage = (function () {
     // 凡例（色の四角か線＋名前。色だけに頼らないよう、名前を必ず書く）
     if (spec.legend && spec.legend.length) {
       y += 50;
+      const firstY = y;
       let x = RM;
       ctx.font = font(30, true);
-      spec.legend.forEach((g) => {
+      const uw = spec.unit ? (ctx.font = font(26), ctx.measureText(spec.unit).width + 24) : 0;
+      ctx.font = font(30, true);
+      spec.legend.forEach((g, gi) => {
+        // 入りきらないときは次の行へ（1行目の右端は「単位」の分をあける）
+        const iw = (g.line ? 64 : 40) + ctx.measureText(g.label).width;
+        if (gi && x + iw > RW - RM - (y === firstY ? uw : 0)) { y += 44; x = RM; }
         if (g.line) {
           ctx.strokeStyle = g.color; ctx.lineWidth = 6; ctx.setLineDash(g.dash ? [14, 9] : []);
           ctx.beginPath(); ctx.moveTo(x, y - 11); ctx.lineTo(x + 52, y - 11); ctx.stroke(); ctx.setLineDash([]);
@@ -745,7 +751,7 @@ window.MapImage = (function () {
         }
         ctx.fillStyle = RC.ink; ctx.fillText(g.label, x, y); x += ctx.measureText(g.label).width + 34;
       });
-      if (spec.unit) { ctx.fillStyle = RC.muted; ctx.font = font(26); ctx.textAlign = "right"; ctx.fillText(spec.unit, RW - RM, y); ctx.textAlign = "left"; }
+      if (spec.unit) { ctx.fillStyle = RC.muted; ctx.font = font(26); ctx.textAlign = "right"; ctx.fillText(spec.unit, RW - RM, firstY); ctx.textAlign = "left"; }
     }
     y += 22;
     ctx.fillStyle = RC.line; ctx.fillRect(RM, y, cw, 2);
@@ -780,24 +786,28 @@ window.MapImage = (function () {
   }
 
   // 積み上げ横棒：名前は左、合計は右。棒は0から、全行で同じ物差し（小さい区分を長く見せない）。外国籍と日本国籍の間に2pxのすき間
+  // r.pair があれば2年の比較：1項目に2本の棒（上＝比較元、下＝比較先）と、右に2段の数字
   function renderBars(spec) {
     const canvas = document.createElement("canvas");
     canvas.width = RW; canvas.height = RH;
     const ctx = canvas.getContext("2d");
     const { top, bottom } = portraitFrame(ctx, spec);
     const rows = spec.rows;
+    const pair = rows.some((r) => r.pair);
     const pitch = Math.min(150, (bottom - top) / Math.max(5, rows.length));
-    const withSub = pitch >= 78 && rows.some((r) => r.sub);
-    const fp = Math.round(Math.min(44, pitch * (withSub ? 0.36 : 0.44)));
-    const bh = Math.round(Math.min(46, pitch * (withSub ? 0.3 : 0.42)));
-    const sp = Math.round(Math.min(26, pitch * 0.27));
+    // 10件までは、スマホで拡大しなくても項目と人数が読める大きさにする（小さい内訳の文字は、行に余裕があるときだけ）
+    const withSub = rows.some((r) => r.sub) && pitch >= (pair ? 118 : 110);
+    const fp = Math.round(Math.min(46, pitch * (withSub ? 0.34 : pair ? 0.4 : 0.46)));
+    const bh = Math.round(Math.min(46, pitch * (withSub ? 0.3 : 0.4)));
+    const pbh = Math.round(Math.min(34, pitch * (withSub ? 0.2 : 0.3))), gap = 6;
+    const sp = Math.round(Math.min(28, pitch * 0.2));
     ctx.font = font(fp, true);
     const nw = Math.min((RW - RM * 2) * 0.4, Math.max(...rows.map((r) => ctx.measureText(r.name).width)));
-    const vp = Math.round(fp * 1.04);
+    const vp = pair ? Math.round(Math.min(34, pbh + gap)) : Math.round(fp * 1.04);
     ctx.font = font(vp, true);
-    const vw = Math.max(...rows.map((r) => ctx.measureText(r.value).width));
+    const vw = Math.max(...rows.map((r) => (r.pair ? Math.max(...r.pair.map((g) => ctx.measureText(g.value).width)) : ctx.measureText(r.value).width)));
     const x0 = RM + nw + 22, x1 = RW - RM - vw - 20;
-    const max = Math.max(1e-9, spec.max || 0, ...rows.map((r) => r.segs.reduce((s, g) => s + (g.n || 0), 0)));
+    const max = Math.max(1e-9, spec.max || 0, ...rows.map((r) => (r.pair ? Math.max(...r.pair.map((g) => g.n || 0)) : r.segs.reduce((s, g) => s + (g.n || 0), 0))));
     rows.forEach((r, i) => {
       const y0 = top + pitch * i;
       const cy = y0 + (withSub ? pitch * 0.38 : pitch * 0.5);
@@ -805,18 +815,28 @@ window.MapImage = (function () {
       const sc = Math.min(1, nw / Math.max(1, (ctx.font = font(fp, true), ctx.measureText(r.name).width)));
       ctx.font = font(Math.floor(fp * sc), true); ctx.fillStyle = RC.ink;
       ctx.fillText(r.name, RM, cy + fp * 0.36);
-      let x = x0;
-      r.segs.forEach((g) => {
-        if (!g.n) return;
-        if (x > x0) x += 2;
-        const w = ((x1 - x0) * g.n) / max;
-        ctx.fillStyle = g.color; ctx.fillRect(x, cy - bh / 2, w, bh);
-        x += w;
-      });
-      ctx.font = font(vp, true); ctx.fillStyle = RC.ink; ctx.textAlign = "right";
-      ctx.fillText(r.value, RW - RM, cy + fp * 0.36);
-      ctx.textAlign = "left";
-      if (withSub && r.sub) { ctx.font = font(sp); ctx.fillStyle = RC.muted; ctx.fillText(r.sub, x0, cy + bh / 2 + sp + 6); }
+      if (r.pair) {
+        r.pair.forEach((g, k) => {
+          const by = cy - pbh - gap / 2 + k * (pbh + gap);
+          if (g.n) { ctx.fillStyle = g.color; ctx.fillRect(x0, by, ((x1 - x0) * g.n) / max, pbh); }
+          ctx.font = font(vp, k === 1); ctx.fillStyle = k ? RC.ink : RC.muted; ctx.textAlign = "right";
+          ctx.fillText(g.value, RW - RM, by + pbh / 2 + vp * 0.36);
+          ctx.textAlign = "left";
+        });
+      } else {
+        let x = x0;
+        r.segs.forEach((g) => {
+          if (!g.n) return;
+          if (x > x0) x += 2;
+          const w = ((x1 - x0) * g.n) / max;
+          ctx.fillStyle = g.color; ctx.fillRect(x, cy - bh / 2, w, bh);
+          x += w;
+        });
+        ctx.font = font(vp, true); ctx.fillStyle = RC.ink; ctx.textAlign = "right";
+        ctx.fillText(r.value, RW - RM, cy + fp * 0.36);
+        ctx.textAlign = "left";
+      }
+      if (withSub && r.sub) { ctx.font = font(sp); ctx.fillStyle = RC.muted; ctx.fillText(r.sub, x0, cy + (r.pair ? pbh + gap / 2 : bh / 2) + sp + 6); }
     });
     ctx.fillStyle = RC.line; ctx.fillRect(x0 - 2, top, 2, pitch * rows.length);
     return toPng(canvas);
@@ -853,7 +873,7 @@ window.MapImage = (function () {
     if (spec.noData) {
       ctx.fillStyle = "rgba(98,90,80,0.08)"; ctx.fillRect(X(spec.noData[0]), pt, X(spec.noData[1]) - X(spec.noData[0]), pb - pt);
       ctx.font = font(24); ctx.fillStyle = RC.muted; ctx.textAlign = "center";
-      wrapJa(ctx, spec.noDataLabel, Math.max(120, X(spec.noData[1]) - X(spec.noData[0]) - 16)).forEach((l, i) => ctx.fillText(l, (X(spec.noData[0]) + X(spec.noData[1])) / 2, pb - 80 + i * 30));
+      wrapJa(ctx, spec.noDataLabel, Math.max(120, X(spec.noData[1]) - X(spec.noData[0]) - 16)).forEach((l, i) => ctx.fillText(l, (X(spec.noData[0]) + X(spec.noData[1])) / 2, pt + 60 + i * 30)); // 上寄せ（古い年は人数が少なく、線は下のほうを通るため）
       ctx.textAlign = "left";
     }
     spec.series.forEach((s) => {

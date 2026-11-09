@@ -21,7 +21,7 @@
 <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 
-<link rel="stylesheet" href="style.css?v=b519fb6d">
+<link rel="stylesheet" href="style.css?v=0a224bd4">
 <style>nihon-site-nav:not(:defined){display:block;min-height:45px;padding:0 16px;background:#f4f6f6;border-bottom:1px solid #d5dcde;font:14px/44px system-ui,sans-serif}@media print{nihon-site-nav{display:none!important}}</style>
 </head>
 <body data-page="nihongo" data-site="https://yumaki5555.github.io/nihongo-school-map/">
@@ -30,13 +30,25 @@
 <script src="https://yumaki5555.github.io/shared/site-nav.js" data-place="manual" async></script>
 <header class="site-head">
   <a class="brand" href="index.html"><img src="favicon.svg" alt="" width="32" height="32"><span>日本語学校・留学生 全国マップ</span></a>
-  <nav class="site-menu" aria-label="このサイトのメニュー"><a href="index.html">地図</a><a href="ranking.html">ランキング</a><a href="compare.html">都道府県比較</a><a href="nihongo.html" aria-current="page">日本語指導</a><a href="guide.html">3分でわかる</a></nav>
+  <nav class="site-menu" aria-label="このサイトのメニュー"><a href="index.html"><span>地図</span></a><a href="ranking.html"><span>ランキング</span></a><a href="compare.html"><span>都道府県<wbr>比較</span></a><a href="nihongo.html" aria-current="page"><span>日本語<wbr>指導</span></a><a href="guide.html"><span>3分で<wbr>わかる</span></a></nav>
 </header>
 <main id="main">
 <div class="wrap narrow" id="nj">
   <h1>日本語指導が必要な子ども — 人数・内訳・推移</h1>
-  <p class="lead">公立学校で日本語指導が必要な児童生徒について、国の調査から人数と変化を確認できます。</p>
-  <p class="nj-scope" id="nj-scope">対象：公立の小・中・高等学校など（日本国籍の子どもも含む）。日本語学校の留学生の数ではありません。</p>
+  <p class="lead">公立の小・中・高等学校などで、日本語の指導が必要な子どもの数です。日本国籍の子どもも含み、日本語学校の留学生の数とは別の統計です。</p>
+  <details class="nj-howto" id="nj-howto"><summary>この統計の見方</summary>
+    <dl>
+      <dt>「日本語指導が必要」とは？</dt>
+      <dd>国の調査では「日本語で日常会話が十分にできない児童生徒、もしくは、日常会話ができても学年相当の学習言語が不足し、学習活動への参加に支障が生じている児童生徒」を指します。</dd>
+      <dt>日本国籍の子どもも数えるのはなぜ？</dt>
+      <dd>この調査は国籍ではなく、日本語の指導が必要かどうかで数えているためです。日本国籍と外国籍の両方を持つ子どもは「日本国籍」として数えます。</dd>
+      <dt>言語別の「日本語」とは？</dt>
+      <dd>言語別は「家庭及び日常生活において、比較的使用頻度の高い言語別」の集計です。「日本語」は、ふだんよく使う言語が日本語で、日本語指導が必要とされた子どもの数です。</dd>
+      <dt>言語別の人数と国籍別の人数のちがいは？</dt>
+      <dd>言語別はよく使う言語で分けた数、国籍別（外国籍・日本国籍）は持っている国籍で分けた数です。たとえば「中国語」の人数は、中国籍の人数とは一致しません。</dd>
+    </dl>
+    <p class="fine">対象は公立の小学校・中学校・高等学校・義務教育学校・中等教育学校・特別支援学校です。出典：文部科学省「<a href="https://www.mext.go.jp/content/20260525-mxt_kyokoku-000049811_03.pdf" target="_blank" rel="noopener">令和7年度 日本語指導が必要な児童生徒の受入状況等に関する調査結果について</a>」（令和8年5月）の「1.3 留意点」と調査票の注記。</p>
+  </details>
   <p class="fine" id="nj-loading">読み込んでいます…</p>
   <p class="cmp-msg" id="nj-error" role="alert" hidden>データを読み込めませんでした。通信の状態を確かめて、ページを開き直してください。</p>
   <div id="nj-main" hidden>
@@ -44,6 +56,9 @@
       <label class="rk-field">地域
         <select id="nj-pref"></select></label>
     </div>
+    <nav class="nj-jump" id="nj-jump" aria-label="見たい内容へ移動">
+      <button type="button" data-go="trend">増減を見る</button><button type="button" data-go="lang">言語を見る</button><button type="button" data-go="pref">地域順位を見る</button><button type="button" data-go="type">学校種を見る</button>
+    </nav>
     <section class="nj-kpi" aria-labelledby="nj-kpi-title">
       <h2 class="vh" id="nj-kpi-title">最新の調査の人数</h2>
       <p class="nj-kpi-when" id="nj-kpi-when"></p>
@@ -51,10 +66,10 @@
     </section>
 
     <section class="nj-card" id="trend" aria-labelledby="nj-trend-title">
-      <div class="rk-head"><h2 id="nj-trend-title">人数の推移</h2><div class="rk-acts" id="nj-trend-acts"></div></div>
+      <div class="rk-head"><h2 id="nj-trend-title" tabindex="-1">人数の推移</h2><div class="rk-acts" id="nj-trend-acts"></div></div>
       <div class="rk-tools nj-tools">
         <div class="rk-field"><span id="nj-s-label">人数の区分</span>
-          <div class="seg" id="nj-s" role="group" aria-labelledby="nj-s-label"><button type="button" data-s="all">合計</button><button type="button" data-s="f">外国籍</button><button type="button" data-s="j">日本国籍</button></div></div>
+          <div class="seg" id="nj-s" role="group" aria-labelledby="nj-s-label"><button type="button" data-s="all">合計</button><button type="button" data-s="f">外国籍</button><button type="button" data-s="j">日本国籍</button><button type="button" data-s="both">外国籍と<wbr>日本国籍</button></div></div>
         <label class="rk-field">比べる地域（任意）
           <select id="nj-pref2"></select></label>
       </div>
@@ -78,23 +93,26 @@
     </section>
 
     <section class="nj-card" id="breakdown" aria-labelledby="nj-bd-title">
-      <div class="rk-head"><h2 id="nj-bd-title">内訳を見る</h2><div class="rk-acts" id="nj-bd-acts"></div></div>
+      <div class="rk-head"><h2 id="nj-bd-title" tabindex="-1">内訳を見る</h2><div class="rk-acts" id="nj-bd-acts"></div></div>
       <div class="rk-tools nj-tools">
         <div class="rk-field"><span id="nj-v-label">内訳</span>
           <div class="seg" id="nj-v" role="group" aria-labelledby="nj-v-label"><button type="button" data-v="lang">言語別</button><button type="button" data-v="pref">都道府県別</button><button type="button" data-v="type">学校種別</button></div></div>
-        <label class="rk-field nj-year">調査年
-          <select id="nj-y"></select></label>
+        <div class="rk-field"><span id="nj-n-label">国籍の区分</span>
+          <div class="seg" id="nj-n" role="group" aria-labelledby="nj-n-label"><button type="button" data-n="all">合計</button><button type="button" data-n="f">外国籍</button><button type="button" data-n="j">日本国籍</button></div></div>
       </div>
-      <div class="rk-tools nj-tools" id="nj-pref-tools">
-        <div class="rk-field"><span id="nj-m-label">順位の基準</span>
-          <div class="seg" id="nj-m" role="group" aria-labelledby="nj-m-label"><button type="button" data-m="all">合計</button><button type="button" data-m="f">外国籍</button><button type="button" data-m="j">日本国籍</button></div></div>
-        <div class="rk-field"><span id="nj-top-label">表示件数</span>
+      <div class="rk-tools nj-tools">
+        <div class="rk-field" id="nj-mode-wrap"><span id="nj-mode-label">表示</span>
+          <div class="seg" id="nj-mode" role="group" aria-labelledby="nj-mode-label"><button type="button" data-mode="one">1年を見る</button><button type="button" data-mode="two">2年を比べる</button></div></div>
+        <label class="rk-field nj-year" id="nj-y-wrap">調査年
+          <select id="nj-y"></select></label>
+        <label class="rk-field nj-year" id="nj-ya-wrap">比較元の調査年
+          <select id="nj-ya"></select></label>
+        <label class="rk-field nj-year" id="nj-yb-wrap">比較先の調査年
+          <select id="nj-yb"></select></label>
+        <div class="rk-field" id="nj-top-wrap"><span id="nj-top-label">表示件数</span>
           <div class="seg" id="nj-top" role="group" aria-labelledby="nj-top-label"><button type="button" data-top="5">上位5</button><button type="button" data-top="10">上位10</button><button type="button" data-top="47">全47</button></div></div>
       </div>
-      <div class="rk-tools nj-tools" id="nj-ln-tools" hidden>
-        <div class="rk-field"><span id="nj-ln-label">表示する国籍</span>
-          <div class="seg" id="nj-ln" role="group" aria-labelledby="nj-ln-label"><button type="button" data-ln="f">外国籍</button><button type="button" data-ln="j">日本国籍</button></div></div>
-      </div>
+      <p class="nj-why" id="nj-n-why" hidden></p>
       <h3 class="nj-bd-head" id="nj-bd-head"></h3>
       <p class="cmp-msg" id="nj-bd-msg" role="status" hidden></p>
       <div class="nj-legend" id="nj-bd-legend"></div>
@@ -113,8 +131,6 @@
       </ul>
       <details class="more"><summary>くわしい注意と調査年ごとのちがい</summary>
         <ul>
-          <li>「日本語指導が必要な児童生徒」は、日本語で日常会話が十分にできない子どもや、日常会話はできても学年相当の学習言語が不足し、学習活動への参加に支障が生じている子どもです（文部科学省の定義）。</li>
-          <li>「外国籍」は外国籍を持つ子どもです。日本国籍との二重国籍の子どもは「日本国籍」として数えています。</li>
           <li>外国籍の小中高校生全体の数、在留資格「留学」の人数、日本語学校の在籍者数とは、別の統計です。足したり引いたりできません。</li>
           <li>人数の多さだけで、地域への影響や支援が足りているかどうかは判断できません。</li>
           <li id="nj-lang-def"></li>
@@ -158,6 +174,6 @@
   <p class="foot-links"><a href="sources.html">出典・利用条件</a><a href="https://docs.google.com/forms/d/e/1FAIpQLSeMRMh8OCG1ZClms-6yE_TXk7xcAizr5k9-E5q6iiOx2r2xMA/viewform" target="_blank" rel="noopener">情報の訂正・お問い合わせ</a></p>
   <p class="muted">最終確認：2026-11-07</p>
 </footer>
-<script src="map-image.js?v=cd919566"></script><script src="nihongo.js?v=78ece851"></script>
+<script src="map-image.js?v=d2e5c910"></script><script src="nihongo.js?v=53c2ae4b"></script>
 </body>
 </html>

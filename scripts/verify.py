@@ -253,7 +253,7 @@ for _pg in ("index", "ranking", "compare", "nihongo", "guide", "sources"):
     _h = (DOCS / f"{_pg}.html").read_text("utf8")
     _m = re.search(r'<nav class="site-menu"[^>]*>(.*?)</nav>', _h, re.S)
     _f = re.search(r'<footer class="site-foot">(.*?)</footer>', _h, re.S)
-    _menus[_pg] = (re.findall(r">([^<]+)</a>", _m.group(1)) if _m else None, _f.group(1) if _f else "")
+    _menus[_pg] = ([re.sub(r"<[^>]+>", "", t) for t in re.findall(r"<a [^>]*>(.*?)</a>", _m.group(1))] if _m else None, _f.group(1) if _f else "")
 ok("メニューは 地図・ランキング・都道府県比較・日本語指導・3分でわかる の順。出典とお問い合わせはメニューに入れず、どのページも下部にある",
    all(m == ["地図", "ランキング", "都道府県比較", "日本語指導", "3分でわかる"] and 'href="sources.html"' in f and "情報の訂正・お問い合わせ" in f for m, f in _menus.values()), str({k: v[0] for k, v in _menus.items()}))
 
@@ -273,6 +273,7 @@ for page in ("index", "ranking", "compare", "nihongo", "guide", "sources"):
 # ---- 日本語指導のページ（data/nihongo_shido.json は fetch_nihongo_shido.py で国の表と照合済み。ここでは公開用の写しを点検）----
 nj = load(DOCS / "data/nihongo_shido.json")
 NJ = {y["year"]: y for y in nj["years"]}
+ok("日本語指導：都道府県は01〜47の47件で、名前の重複なし", sorted(nj["prefs"]) == [f"{i:02d}" for i in range(1, 48)] and len(set(nj["prefs"].values())) == 47, "")
 ok("日本語指導：調査年は2005〜2025年の12回", sorted(NJ) == [2005, 2006, 2007, 2008, 2010, 2012, 2014, 2016, 2018, 2021, 2023, 2025], str(sorted(NJ)))
 ok("日本語指導：2025年の公立の発表値（外国籍73,313・日本国籍11,446）", NJ[2025]["nat"] == {"f": 73313, "j": 11446}, str(NJ[2025]["nat"]))
 ok("日本語指導：地図の人数（stats.json）と最新年の合計が同じ", ref["nihongo"]["variants"][0]["national"] == sum(NJ[2025]["nat"].values()), "")
@@ -286,7 +287,7 @@ ok("日本語指導：言語別の和＝全国", all(sum(L["nat"]) == y["nat"][k
 ok("日本語指導：ネパール語は2025年だけ（それ以前は0にしない）", all(("ネパール語" in L["cats"]) == (y["year"] == 2025) for y in nj["years"] for L in y["lang"].values() if L), "")
 ok("日本語指導：すべての値に出典の表がある", all(y["src"] and all(s["url"].startswith("https://www.e-stat.go.jp/") for s in y["src"].values()) for y in nj["years"]), "")
 navs = {pg: (DOCS / f"{pg}.html").read_text("utf8") for pg in ("index", "ranking", "compare", "nihongo", "guide")}
-ok("日本語指導：全ページのメニューで都道府県比較の次にある", all(re.search(r'href="compare.html"[^>]*>都道府県比較</a><a href="nihongo.html"[^>]*>日本語指導</a>', h) for h in navs.values()), "")
+ok("日本語指導：全ページのメニューで都道府県比較の次にある", all(re.search(r'href="compare.html"[^>]*><span>都道府県<wbr>比較</span></a><a href="nihongo.html"[^>]*><span>日本語<wbr>指導</span></a>', h) for h in navs.values()), "")
 ok("日本語指導：3分でわかるからリンクがある", 'href="nihongo.html"' in navs["guide"].split("<main")[-1], "")
 
 size = sum(p.stat().st_size for p in DOCS.rglob("*") if p.is_file())

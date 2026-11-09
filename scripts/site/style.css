@@ -1,3 +1,5 @@
+/* hidden を付けたものは必ず隠す（display:flex などの指定が hidden より強く、隠したはずのボタンや枠が出てしまうため） */
+[hidden] { display: none !important; }
 /* 色は全てここで管理する */
 :root {
   --bg: #FFFDF6;
@@ -373,7 +375,25 @@ table.plain { width: 100%; border-collapse: collapse; font-size: .92rem; }
 }
 
 /* 日本語指導のページ（nihongo.html） */
-.nj-scope { margin: 0 0 12px; padding: 8px 12px; background: var(--white); border: 1px solid var(--line-soft); border-left: 5px solid var(--accent); border-radius: 8px; font-size: .9rem; }
+/* 冒頭：この統計の見方（折りたたみ）と、見たい内容へ移動するボタン */
+.nj-howto { margin: 0 0 12px; padding: 2px 12px; background: var(--white); border: 1px solid var(--line-soft); border-radius: 8px; }
+.nj-howto summary { cursor: pointer; font-weight: 600; color: var(--brand); min-height: 40px; display: flex; align-items: center; }
+.nj-howto dl { margin: 0 0 6px; }
+.nj-howto dt { font-weight: 700; margin-top: 8px; color: var(--ink); }
+.nj-howto dd { margin: 2px 0 0; font-size: .92rem; line-height: 1.65; }
+.nj-jump { display: flex; flex-wrap: wrap; gap: 6px; margin: 2px 0 12px; }
+.nj-jump button { flex: 1 1 auto; min-height: 40px; padding: 4px 12px; font: inherit; font-size: .9rem; font-weight: 600; color: var(--brand-dark); background: var(--white); border: 1px solid var(--line); border-radius: 8px; cursor: pointer; }
+.nj-jump button:hover { background: var(--soft); }
+.nj-badge { display: inline-block; padding: 0 8px; border-radius: 999px; background: var(--brand); color: var(--white); font-weight: 700; font-size: .82rem; line-height: 1.6; }
+.nj-why { margin: -4px 0 8px; font-size: .84rem; color: var(--muted); }
+.nj-order { color: var(--muted); font-size: .82rem; }
+.seg button:disabled { opacity: .45; cursor: not-allowed; background: var(--white); }
+/* 内訳の2年比較：1項目に2本の棒（上＝比較元、下＝比較先）。数字は右に2段 */
+.nj-track2 { display: flex; flex-direction: column; justify-content: center; gap: 3px; min-height: 26px; border-left: 1px solid var(--line); min-width: 0; }
+.nj-bar { display: block; height: 10px; min-width: 0; border-radius: 0 3px 3px 0; }
+.nj-v2 { display: flex; flex-direction: column; text-align: right; font-size: .8rem; line-height: 1.25; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.nj-v2 b { font-size: .9rem; color: var(--ink); }
+.nj-name small { display: block; font-size: .74rem; color: var(--muted); }
 .nj-tools .rk-field { flex: 0 1 auto; }
 .nj-tools label.rk-field { flex: 1 1 200px; max-width: 320px; }
 .nj-kpi-when { margin: 4px 0 6px; font-size: .9rem; color: var(--muted); }
@@ -438,8 +458,20 @@ table.plain { width: 100%; border-collapse: collapse; font-size: .92rem; }
   .nj-name { grid-area: name; }
   .nj-v { grid-area: v; }
   .nj-track { grid-area: track; height: 14px; }
+  .nj-track2 { grid-area: track; }
+  .nj-v2 { grid-area: v; flex-direction: row; gap: 8px; align-items: baseline; }
+  .nj-name small { display: inline; margin-left: 6px; }
   .nj-kpis { gap: 6px; }
   .nj-kpis li { padding: 6px 8px; }
   .nj-res dl { gap: 4px; }
   .nj-unit { margin-left: 0; }
+}
+/* スマホ：メニューを1行におさめ、指で押しやすい高さ（44px）にする。長い名前は <wbr> の位置で2行に折る */
+@media (max-width: 480px) {
+  .site-menu { flex-wrap: nowrap; width: 100%; }
+  .site-menu a { flex: 1 1 auto; display: flex; align-items: center; justify-content: center; min-height: 44px; padding: 2px 4px; text-align: center; line-height: 1.2; word-break: keep-all; overflow-wrap: normal; }
+  .btn-x, .nj-quick .btn-x, .seg button, .nj-jump button { min-height: 44px; }
+  /* 長い名前のボタンは <wbr> の位置で2行に折る（横にはみ出さない） */
+  .seg button { white-space: normal; word-break: keep-all; overflow-wrap: normal; line-height: 1.25; padding: 4px 8px; }
+  .nj-jump { display: grid; grid-template-columns: 1fr 1fr; }
 }
