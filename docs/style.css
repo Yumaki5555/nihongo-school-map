@@ -405,6 +405,9 @@ table.plain { width: 100%; border-collapse: collapse; font-size: .92rem; }
 .nj-kpis b small { font-size: .8rem; margin-left: 2px; color: var(--muted); font-weight: 400; }
 .nj-kpis li > small { font-size: .78rem; line-height: 1.4; }
 .nj-kpi-all { border-left: 4px solid var(--brand) !important; }
+/* 外国籍の子どものページ：最新の人数は4枚（合計・小・中・高）。スマホでは2枚ずつ */
+.nj-kpis.nj-k4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+@media (max-width: 559px) { .nj-kpis.nj-k4 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 .nj-card { margin: 18px 0; padding-top: 14px; border-top: 1px solid var(--line-soft); }
 .nj-sw { display: inline-block; width: 12px; height: 12px; border-radius: 3px; flex: none; }
 .nj-legend { display: flex; flex-wrap: wrap; gap: 4px 16px; align-items: center; margin: 4px 0 6px; font-size: .88rem; }
@@ -417,18 +420,48 @@ table.plain { width: 100%; border-collapse: collapse; font-size: .92rem; }
 .nj-tip { position: absolute; z-index: 5; max-width: 260px; padding: 6px 10px; background: var(--white); border: 1px solid var(--line); border-radius: 6px; box-shadow: 0 2px 8px rgba(53,45,32,.15); font-size: .84rem; line-height: 1.55; pointer-events: none; }
 .nj-tip[hidden] { display: none; }
 .nj-cmp { margin: 12px 0; padding: 10px 12px; background: var(--white); border: 1px solid var(--line-soft); border-radius: 8px; }
-.nj-cmp h3 { margin: 0 0 6px; }
+.nj-cmp h3 { margin: 0 0 2px; }
+.nj-cmp-sub { margin: 0 0 8px; font-size: .9rem; color: var(--muted); }
+.nj-cmp-sub b { color: var(--ink); }
+.nj-cmp-label { margin: 0 0 4px; font-size: .86rem; font-weight: 700; color: var(--brand-dark); }
+/* 2つの年の比較：外国籍・日本国籍ごとに2本の横棒（0から・全部の棒で同じ尺度。数を書く場所 5.5em を棒の外に取る）。右側の欄は幅を固定して、棒の長さの尺度をそろえる */
+.nj-cg { margin: 10px 0 0; }
+.nj-cg-h { margin: 0 0 4px; font-weight: 700; }
+.nj-cp { padding: 8px 10px; border: 1px solid var(--line-soft); border-radius: 8px; background: var(--bg); }
+.nj-cp + .nj-cp { margin-top: 8px; }
+.nj-cp h4 { display: flex; align-items: center; gap: 6px; margin: 0 0 4px; font-size: .95rem; }
+.nj-cp-body { display: grid; grid-template-columns: minmax(0, 1fr) 12em; gap: 6px 14px; align-items: center; }
+.nj-cbars { margin: 0; padding: 0; list-style: none; }
+.nj-cbars li { display: grid; grid-template-columns: 3.4em minmax(0, 1fr); align-items: center; gap: 6px; margin: 4px 0; }
+.nj-cy { font-size: .88rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+.nj-ctrack { display: flex; align-items: center; min-width: 0; min-height: 26px; border-left: 1px solid var(--muted); }
+.nj-cbar { display: block; flex: none; height: 22px; box-sizing: border-box; border: 2px solid; border-left: 0; border-radius: 0 4px 4px 0; }
+.nj-cv { margin-left: 6px; font-size: .92rem; font-weight: 700; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.nj-cv.na { font-weight: 400; color: var(--muted); }
+.nj-cstat { min-width: 0; }
+.nj-cratio { margin: 0; display: flex; flex-direction: column; line-height: 1.25; }
+.nj-cratio small { font-size: .78rem; color: var(--muted); }
+.nj-cratio b { font-size: 1.9rem; color: var(--ink); font-variant-numeric: tabular-nums; }
+.nj-cratio.nj-na b { font-size: 1.1rem; }
+.nj-cmore { margin: 4px 0 0; font-size: .86rem; }
+.nj-cmore div { display: flex; flex-wrap: wrap; gap: 0 6px; }
+.nj-cmore dt { color: var(--muted); }
+.nj-cmore dd { margin: 0; font-weight: 700; font-variant-numeric: tabular-nums; }
+.nj-cnote { margin: 8px 0 0; }
+/* 選んでいる地域の見出しと「全国に戻す」 */
+.nj-area-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; margin: 6px 0 0; }
+.nj-area-bar h2 { margin: 0; font-size: 1.25rem; }
+.nj-area-bar .btn-x { min-height: 36px; font: inherit; font-size: .86rem; cursor: pointer; }
+/* ランキングの都道府県名（このページの地域を切り替えるボタン。見た目はリンクに近く） */
+.nj-plink { padding: 2px 0; border: 0; background: none; font: inherit; color: var(--brand); text-decoration: underline; text-underline-offset: 2px; cursor: pointer; text-align: left; }
+.nj-plink:hover { color: var(--brand-dark); }
+.nj-plink:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; border-radius: 2px; }
+.nj-hint { margin: 6px 0 0; font-size: .86rem; color: var(--muted); }
 .nj-quick { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .nj-quick .btn-x { min-height: 36px; font: inherit; font-size: .86rem; cursor: pointer; }
 .nj-quick .btn-x[aria-pressed="true"] { border-color: var(--brand); box-shadow: 0 0 0 1px var(--brand) inset; background: var(--soft); font-weight: 700; }
 .nj-quick .btn-x:disabled { opacity: .55; cursor: not-allowed; }
 .nj-quick .fine { margin: 0 0 0 4px; }
-.nj-res { margin: 6px 0; }
-.nj-res-head { margin: 0 0 4px; }
-.nj-res dl { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; margin: 0; }
-.nj-res dl div { padding: 6px 8px; background: var(--bg); border-radius: 6px; }
-.nj-res dt { font-size: .78rem; color: var(--muted); }
-.nj-res dd { margin: 0; font-weight: 700; font-variant-numeric: tabular-nums; }
 .nj-say { margin: 10px 0; padding: 8px 12px; border-left: 4px solid var(--accent); background: var(--white); border-radius: 0 8px 8px 0; }
 .nj-table { margin: 8px 0; }
 .nj-table summary { cursor: pointer; color: var(--brand); font-weight: 600; min-height: 36px; display: flex; align-items: center; }
@@ -463,8 +496,10 @@ table.plain { width: 100%; border-collapse: collapse; font-size: .92rem; }
   .nj-name small { display: inline; margin-left: 6px; }
   .nj-kpis { gap: 6px; }
   .nj-kpis li { padding: 6px 8px; }
-  .nj-res dl { gap: 4px; }
   .nj-unit { margin-left: 0; }
+  .nj-cp-body { grid-template-columns: minmax(0, 1fr); }
+  .nj-cstat { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 2px 16px; padding-top: 4px; border-top: 1px solid var(--line-soft); }
+  .nj-cmore { margin: 0; }
 }
 /* スマホ：メニューを1行におさめ、指で押しやすい高さ（44px）にする。長い名前は <wbr> の位置で2行に折る */
 @media (max-width: 480px) {
