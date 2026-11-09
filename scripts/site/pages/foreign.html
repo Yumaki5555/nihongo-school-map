@@ -24,8 +24,8 @@
     <nav class="nj-jump" id="nj-jump" aria-label="見たい内容へ移動">
       <button type="button" data-go="trend">増減を見る</button><button type="button" data-go="pref">地域順位を見る</button><button type="button" data-go="type">学校種を見る</button><button type="button" data-go="owner">公立・私立を見る</button>
     </nav>
-    <section class="nj-kpi" aria-labelledby="nj-kpi-title">
-      <h2 class="vh" id="nj-kpi-title">最新の調査の人数</h2>
+    <section class="nj-kpi" id="area" aria-labelledby="nj-area-title">
+      <div class="nj-area-bar"><h2 id="nj-area-title" tabindex="-1">全国のデータ</h2><button type="button" class="btn-x" id="nj-reset" hidden>全国に戻す</button></div>
       <p class="nj-kpi-when" id="nj-kpi-when"></p>
       <ul class="nj-kpis nj-k4" id="nj-kpis"></ul>
       <p class="fine" id="nj-kpi-note"></p>
@@ -45,18 +45,20 @@
       <div class="nj-legend" id="nj-trend-legend"></div>
       <div class="nj-chart" id="nj-trend-chart"></div>
       <p class="fine" id="nj-trend-note"></p>
-      <div class="nj-cmp">
-        <h3>2つの調査年を比べる</h3>
-        <div class="nj-quick" id="nj-quick" role="group" aria-label="最新の調査と比べる年を選ぶ"></div>
+      <p class="nj-say" id="nj-trend-say"></p>
+      <div class="nj-cmp" id="nj-cmp">
+        <h3 id="nj-cmp-title">外国籍の児童生徒は、どれくらい増えた？</h3>
+        <p class="nj-cmp-sub" id="nj-cmp-sub"></p>
+        <p class="nj-cmp-label" id="nj-cmp-label">2つの年を比較</p>
+        <div class="nj-quick" id="nj-quick" role="group" aria-labelledby="nj-cmp-label"></div>
         <div class="rk-tools nj-tools">
-          <label class="rk-field">比較元の調査年
+          <label class="rk-field">比較する年（過去）
             <select id="nj-a"></select></label>
-          <label class="rk-field">比較先の調査年
+          <label class="rk-field">比較する年（新しい年）
             <select id="nj-b"></select></label>
         </div>
         <div class="nj-result" id="nj-result" aria-live="polite"></div>
       </div>
-      <p class="nj-say" id="nj-trend-say"></p>
       <details class="nj-table"><summary>数値を表で見る</summary><div class="tablewrap" id="nj-trend-table"></div></details>
     </section>
 
@@ -75,9 +77,9 @@
           <div class="seg" id="nj-mode" role="group" aria-labelledby="nj-mode-label"><button type="button" data-mode="one">1年を見る</button><button type="button" data-mode="two">2年を比べる</button></div></div>
         <label class="rk-field nj-year" id="nj-y-wrap">調査年
           <select id="nj-y"></select></label>
-        <label class="rk-field nj-year" id="nj-ya-wrap">比較元の調査年
+        <label class="rk-field nj-year" id="nj-ya-wrap">比較する年（過去）
           <select id="nj-ya"></select></label>
-        <label class="rk-field nj-year" id="nj-yb-wrap">比較先の調査年
+        <label class="rk-field nj-year" id="nj-yb-wrap">比較する年（新しい年）
           <select id="nj-yb"></select></label>
         <div class="rk-field" id="nj-top-wrap"><span id="nj-top-label">表示件数</span>
           <div class="seg" id="nj-top" role="group" aria-labelledby="nj-top-label"><button type="button" data-top="5">上位5</button><button type="button" data-top="10">上位10</button><button type="button" data-top="47">全47</button></div></div>

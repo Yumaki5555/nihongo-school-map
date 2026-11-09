@@ -14,9 +14,12 @@
   const VIEW = { pref: "都道府県別", type: "学校種別", owner: "国立・公立・私立別" };
   const SITE_NAME = "日本語学校・留学生 全国マップ";
   const SURVEY = "文部科学省「学校基本調査」";
-  const QUICK = [1, 5, 10];
-  const BACK = 5; // 比較元の初期値（比較先の5年前）
-  const MAP_VARIANT = { elem: "elem", mid: "mid", high: "high" }; // 地図（index.html）の区分。ほかは地図の「合計」
+  const QUICK = [1, 5, 10]; // 2つの年の比較のボタン（調査は毎年なので、ちょうどその年数前）。ほかに「最も古い年」のボタン
+  const BACK = 5; // 内訳の2年比較の過去の年の初期値（新しい年の5年前）
+  const TARGET = 20; // 推移の2つの年の比較の初期値：約20年前にいちばん近い年（データが20年分ないときは最も古い年）
+  // 2つの年の比較の過去の年：区分の色を白と混ぜた薄い色（棒の枠は区分の色のままにして、白地との見分けを保つ）
+  const SHADE = { all: "#BFB5A1", p: "#AABFDC", s: "#B2D7B8", k: "#E3C2A4" };
+  const CMP_NAME = { all: "国立・公立・私立の合計", k: "国立", p: "公立", s: "私立" };
   const PAGE47 = 12;
   // t＝推移の学校の種類、s＝推移の国立公立私立、bt＝内訳（都道府県別・国立公立私立別）の学校の種類、n＝内訳（都道府県別・学校種別）の国立公立私立
   const state = { pref: "", pref2: "", t: "all", s: "all", a: null, b: null, v: "pref", bt: "all", n: "all", y: null, top: 10, mode: "one", ya: null, yb: null };
@@ -37,6 +40,8 @@
   function dateStamp() { const d = new Date(); return `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, "0")}${String(d.getDate()).padStart(2, "0")}`; }
   // 表示する対象の名前（例：外国籍の児童生徒（高等学校・私立））
   const what = (t, n) => `外国籍の児童生徒（${T[t].short}${n && n !== "all" ? "・" + OWN[n] : ""}）`;
+  // 都道府県別の並べ方（例：外国籍の児童生徒数（高等学校・私立）が多い順）
+  const rankBy = (t, n) => `外国籍の児童生徒数（${T[t].short}${n && n !== "all" ? "・" + OWN[n] : ""}）が多い順`;
 
   // ---- 人数 ----
   // その年・地域・学校の種類の [国立, 公立, 私立]。公表されていない年・区分がない年は null（0 とは区別する）。
@@ -64,22 +69,40 @@
   const regions = () => (state.pref2 && state.pref ? [state.pref, state.pref2] : [state.pref]);
   const availYears = (t, s) => YEARS.filter((y) => regions().every((c) => val(y, c, t, s === "both" ? "all" : s) != null));
 
+  // 増減・増減率・倍率（過去の年が0人なら率と倍率は出さない。どちらかの年がデータなしなら null）
   function change(a, b) {
+    if (a == null || b == null) return null;
     const d = b - a;
     if (a === 0) return { d, pct: null, ratio: null };
     return { d, pct: roundDiv(d * 1000, a), ratio: roundDiv(b * 100, a) };
   }
+  // 文言は増加・減少・変化なしで切り替える（「−○人増加」のような書き方はしない）
   function changeText(a, b) {
     const c = change(a, b);
-    const diff = c.d > 0 ? `${fmt(c.d)}人増` : c.d < 0 ? `${fmt(-c.d)}人減` : "増減なし";
-    if (c.pct === null) return { diff, pct: "計算できません", ratio: "計算できません", zero: true };
-    const p = c.pct > 0 ? "+" + (c.pct / 10).toFixed(1) : c.pct < 0 ? "−" + (-c.pct / 10).toFixed(1) : "±0.0";
-    return { diff, pct: p + "％", ratio: (c.ratio / 100).toFixed(2) + "倍", zero: false };
+    if (!c) return { diff: "データなし", pct: "データなし", ratio: "データなし", na: true };
+    const diff = moveWord(c.d);
+    if (c.pct === null) return { diff, pct: "算出できません", ratio: "算出できません", zero: true };
+    const word = c.d > 0 ? "増加" : "減少";
+    const pct = c.d === 0 ? "0.0％（変化なし）" : c.pct === 0 ? `0.1％未満の${word}` : `${(Math.abs(c.pct) / 10).toFixed(1)}％${word}`;
+    return { diff, pct, ratio: (c.ratio / 100).toFixed(2) + "倍", zero: false };
   }
-  const moveWord = (d) => (d > 0 ? `${fmt(d)}人増加` : d < 0 ? `${fmt(-d)}人減少` : "増減なし");
-  // 調査は毎年なので、n年前はちょうどその年だけ（なければ選べない）
-  const nYearsAgo = (n, b, years) => (years.includes(b - n) ? b - n : null);
-  const prevYear = (b, years) => nYearsAgo(BACK, b, years) || years.filter((y) => y < b)[0] || years.find((y) => y !== b) || null;
+  const moveWord = (d) => (d > 0 ? `${fmt(d)}人増加` : d < 0 ? `${fmt(-d)}人減少` : "変化なし");
+  // b から n 年前にいちばん近い年（b より前の年だけ。同じだけ近いときは古い方）。lim 年より離れていれば null
+  function nearest(n, b, years, lim) {
+    let best = null;
+    years.forEach((y) => { if (y >= b) return; const d = Math.abs(b - n - y); if (!best || d < best.d) best = { y, d }; });
+    return best && (lim == null || best.d <= lim) ? best.y : null;
+  }
+  // 調査は毎年なので、ボタンの「n年前」はちょうどその年だけ（なければ押せない）
+  const quickYear = (n, b, years) => nearest(n, b, years, 0);
+  // 推移の2つの年の比較の初期値（年は埋め込まず、選べる年から決める）
+  const defaultPast = (b, years) => nearest(TARGET, b, years);
+  // 内訳の2年比較の過去の年の初期値：5年前（なければ1つ前の年）
+  const prevYear = (b, years) => quickYear(BACK, b, years) || years.filter((y) => y < b).pop() || null;
+  // 新しい年を変えて過去の年が新しい年以降になったら、それまでと同じ年数前に直す（なければ初期値）
+  const keepGap = (gap, b, years, fallback) => quickYear(gap, b, years) || fallback(b, years);
+  // 地域を変える（地域の選択欄・ランキングの都道府県名・「全国に戻す」で共通）
+  function setPref(code) { state.pref = code; if (state.pref2 === state.pref) state.pref2 = ""; }
 
   function init() {
     N.years.forEach((o) => { Y[o.year] = o; });
@@ -97,7 +120,10 @@
     $("nj-t").innerHTML = T_IDS.map((t) => `<option value="${t}">${esc(T[t].label)}</option>`).join("");
     readUrl();
     $("nj-src-table").innerHTML = sourceTable();
-    $("nj-pref").addEventListener("change", (e) => { state.pref = e.target.value; if (state.pref2 === state.pref) state.pref2 = ""; render(); });
+    $("nj-pref").addEventListener("change", (e) => { setPref(e.target.value); render(); });
+    $("nj-reset").addEventListener("click", () => { setPref(""); render(); $("nj-area-title").focus(); });
+    // ランキングの都道府県名：地図へは移動せず、このページの地域をその都道府県にして、地域のデータへ移動
+    $("nj-bars").addEventListener("click", (e) => { const b = e.target.closest("button[data-pref]"); if (!b) return; setPref(b.dataset.pref); render(); jumpTo("area"); });
     $("nj-pref2").addEventListener("change", (e) => { state.pref2 = e.target.value; render(); });
     $("nj-t").addEventListener("change", (e) => { state.t = e.target.value; render(); });
     $("nj-bt").addEventListener("change", (e) => { state.bt = e.target.value; render(); });
@@ -106,12 +132,14 @@
     seg("nj-n", "n", (v) => { state.n = v; });
     seg("nj-top", "top", (v) => { state.top = Number(v); });
     seg("nj-mode", "mode", (v) => { if (v === "two" && state.mode !== "two") { state.yb = state.y; state.ya = null; } if (v === "one" && state.mode === "two") state.y = state.yb; state.mode = v; });
-    $("nj-a").addEventListener("change", (e) => { state.a = Number(e.target.value); state.same = state.a === state.b; render(); });
-    $("nj-b").addEventListener("change", (e) => { state.b = Number(e.target.value); state.same = state.a === state.b; render(); });
+    // 過去の年の選択肢は新しい年より前だけ。新しい年を過去の年以前に変えたら、過去の年を直す。
+    // aSet＝過去の年を自分で選んだ（選んでいなければ、地域や区分を変えるたびに初期値の年にそろえる）
+    $("nj-a").addEventListener("change", (e) => { state.a = Number(e.target.value); state.aSet = true; render(); });
+    $("nj-b").addEventListener("change", (e) => { const gap = state.b - state.a; state.b = Number(e.target.value); if (state.a >= state.b) state.a = keepGap(gap, state.b, availYears(state.t, state.s), defaultPast); render(); });
     $("nj-y").addEventListener("change", (e) => { state.y = Number(e.target.value); render(); });
-    $("nj-ya").addEventListener("change", (e) => { state.ya = Number(e.target.value); state.sameBd = state.ya === state.yb; render(); });
-    $("nj-yb").addEventListener("change", (e) => { state.yb = Number(e.target.value); state.sameBd = state.ya === state.yb; render(); });
-    $("nj-quick").addEventListener("click", (e) => { const b = e.target.closest("button[data-a]"); if (b && !b.disabled) { state.a = Number(b.dataset.a); render(); } });
+    $("nj-ya").addEventListener("change", (e) => { state.ya = Number(e.target.value); render(); });
+    $("nj-yb").addEventListener("change", (e) => { const gap = state.yb - state.ya; state.yb = Number(e.target.value); if (state.ya >= state.yb) state.ya = keepGap(gap, state.yb, YEARS, prevYear); render(); });
+    $("nj-quick").addEventListener("click", (e) => { const b = e.target.closest("button[data-a]"); if (b && !b.disabled) { state.a = Number(b.dataset.a); state.aSet = true; render(); } });
     $("nj-jump").addEventListener("click", (e) => {
       const b = e.target.closest("button[data-go]");
       if (!b) return;
@@ -167,12 +195,14 @@
     if (["all", "p", "s", "both"].includes(p.get("s"))) state.s = p.get("s");
     const yr = (k) => { const n = Number(p.get(k)); return YEARS.includes(n) ? n : null; };
     state.a = yr("a"); state.b = yr("b"); state.y = yr("y");
+    if (state.a && state.b && state.a > state.b) [state.a, state.b] = [state.b, state.a]; // 以前の逆向きのリンクも古い年→新しい年で開く
+    state.aSet = !!state.a;
     if (VIEW[p.get("v")]) state.v = p.get("v");
     if (T[p.get("bt")]) state.bt = p.get("bt");
     if (["all", "p", "s"].includes(p.get("n"))) state.n = p.get("n");
     if (["5", "10", "47"].includes(p.get("top"))) state.top = Number(p.get("top"));
     const ys = /^(\d{4})-(\d{4})$/.exec(p.get("ys") || "");
-    if (ys && YEARS.includes(+ys[1]) && YEARS.includes(+ys[2]) && ys[1] !== ys[2]) { state.mode = "two"; state.ya = +ys[1]; state.yb = +ys[2]; }
+    if (ys && YEARS.includes(+ys[1]) && YEARS.includes(+ys[2]) && ys[1] !== ys[2]) { state.mode = "two"; state.ya = Math.min(+ys[1], +ys[2]); state.yb = Math.max(+ys[1], +ys[2]); }
   }
 
   function query() {
@@ -181,7 +211,7 @@
     else if (state.pref) p.set("pref", state.pref);
     if (state.t !== "all") p.set("t", state.t);
     if (state.s !== "all") p.set("s", state.s);
-    if (state.a && state.a !== prevYear(state.b, availYears(state.t, state.s))) p.set("a", state.a);
+    if (state.a && state.a !== defaultPast(state.b, availYears(state.t, state.s))) p.set("a", state.a);
     if (state.b && state.b !== LATEST) p.set("b", state.b);
     if (state.v !== "pref") p.set("v", state.v);
     if (state.v !== "type" && state.bt !== "all") p.set("bt", state.bt);
@@ -196,14 +226,16 @@
 
   // ---- 全体の描き直し ----
   function render() {
+    // 2つの年の比較は、今の地域・区分で数のある年だけ選べる。URLに b がない＝最新、a がない＝約20年前（データの範囲で最も近い年）。
+    // 過去の年は新しい年より前に限る。自分で選んでいない過去の年は、地域や区分を変えたら初期値の年にそろえる
     const ys = availYears(state.t, state.s);
-    if (state.b == null) state.b = ys[ys.length - 1];
-    if (!ys.includes(state.b) || (state.a != null && !ys.includes(state.a))) { state.b = ys[ys.length - 1]; state.a = null; }
-    if (!ys.includes(state.a) || state.a === state.b) state.a = prevYear(state.b, ys);
+    if (!ys.includes(state.b) || state.b === ys[0]) state.b = ys[ys.length - 1];
+    if (!state.aSet || !ys.includes(state.a) || state.a >= state.b) { state.a = defaultPast(state.b, ys); state.aSet = false; }
     if (!state.y || !YEARS.includes(state.y)) state.y = LATEST;
     if (state.mode === "two") {
       if (!YEARS.includes(state.yb)) state.yb = state.y;
-      if (!YEARS.includes(state.ya) || state.ya === state.yb) state.ya = prevYear(state.yb, YEARS);
+      if (state.yb === YEARS[0]) state.yb = YEARS[1];
+      if (!YEARS.includes(state.ya) || state.ya >= state.yb) state.ya = prevYear(state.yb, YEARS);
     }
     $("nj-pref").value = state.pref;
     $("nj-pref2").innerHTML = state.pref
@@ -227,7 +259,9 @@
   function renderKpi() {
     const o = Y[LATEST], c = state.pref;
     const all = trip(LATEST, c, "all"), sum = pick(all, "all");
-    $("nj-kpi-when").innerHTML = `<b>${esc(areaName(c))}</b> <span class="nj-badge">${LATEST}年・最新</span> ${esc(o.fy)}・${md(o.as_of)}現在・国立・公立・私立の学校`;
+    $("nj-area-title").textContent = `${areaName(c)}のデータ`;
+    $("nj-reset").hidden = !c;
+    $("nj-kpi-when").innerHTML = `<span class="nj-badge">${LATEST}年・最新</span> ${esc(o.fy)}・${md(o.as_of)}現在・国立・公立・私立の学校`;
     const tile = (t, n, sub) => `<li${t === "all" ? ' class="nj-kpi-all"' : ""}><span>${esc(t === "all" ? "合計" : T[t].short)}</span><b>${fmt(n)}<small>人</small></b>${sub ? `<small>${sub}</small>` : ""}</li>`;
     $("nj-kpis").innerHTML = tile("all", sum, "6種類の学校") + ["elem", "mid", "high"].map((t) => { const n = val(LATEST, c, t, "all"); return tile(t, n, `合計の${pctText(n, sum)}`); }).join("");
     const rest = ["compul", "second", "special"].map((t) => `${T[t].label} ${fmt(val(LATEST, c, t, "all"))}人`).join("・");
@@ -258,58 +292,67 @@
     $("nj-trend-msg").textContent = msg.join("");
     const M = trendModel();
     $("nj-trend-legend").innerHTML = M.series.map((se) => `<span class="nj-lg"><svg width="34" height="14" aria-hidden="true"><line x1="2" y1="7" x2="32" y2="7" stroke="${se.color}" stroke-width="2.5"${se.dash ? ' stroke-dasharray="6 4"' : ""}/>${se.marker === "square" ? `<rect x="13" y="3" width="8" height="8" fill="${se.color}"/>` : `<circle cx="17" cy="7" r="4" fill="${se.color}"/>`}</svg>${esc(se.name)}</span>`).join("") + '<span class="nj-unit">単位：人</span>';
-    const opt = (sel) => ys.map((y) => `<option value="${y}"${y === sel ? " selected" : ""}>${y}年（${Y[y].fy}）</option>`).join("");
-    $("nj-a").innerHTML = opt(state.a);
-    $("nj-b").innerHTML = opt(state.b);
-    $("nj-quick").innerHTML = QUICK.map((n) => {
-      const y = nYearsAgo(n, state.b, ys);
-      return `<button type="button" class="btn-x" data-a="${y || ""}"${y ? "" : " disabled"} aria-pressed="${y === state.a}">${n === 1 ? "前年" : n + "年前"}${y ? `（${y}年）` : "（データなし）"}</button>`;
-    }).join("") + `<span class="fine">比較先：${state.b}年</span>`;
-    let html = "";
-    const lines = [];
+    // 2つの年の比較：過去の年は新しい年より前だけ、新しい年は最初の年より後だけを選べる（年の向きが逆にならない）
+    const opt = (list, sel) => list.map((y) => `<option value="${y}"${y === sel ? " selected" : ""}>${y}年（${Y[y].fy}）</option>`).join("");
+    $("nj-a").innerHTML = opt(ys.filter((y) => y < state.b), state.a);
+    $("nj-b").innerHTML = opt(ys.slice(1), state.b);
+    const qb = (y, label) => `<button type="button" class="btn-x" data-a="${y || ""}"${y ? "" : " disabled"} aria-pressed="${y === state.a}">${label}${y ? `（${y}年）` : "（該当なし）"}</button>`;
+    const oldest = ys[0] < state.b ? ys[0] : null;
+    $("nj-quick").innerHTML = `<span class="fine">${state.b}年から数えて</span>`
+      + QUICK.map((n) => qb(quickYear(n, state.b, ys), n === 1 ? "前年" : `${n}年前`)).join("")
+      + (oldest && QUICK.includes(state.b - oldest) ? "" : qb(oldest, "最も古い年"));
+    renderCompare(regs, L);
+    // 読み取り文（推移の山だけ。比較の数はグラフに書いてあるので繰り返さない）
     let say = "";
-    if (!state.a || state.a === state.b) html = '<p class="cmp-msg">異なる2つの調査年を選んでください。</p>';
-    else {
-      const [a, b] = state.a < state.b ? [state.a, state.b] : [state.b, state.a];
-      const ch = {};
-      L.forEach((l) => {
-        const va = val(a, l.c, state.t, l.k), vb = val(b, l.c, state.t, l.k);
-        const t = changeText(va, vb);
-        ch[l.c + l.k] = { va, vb, d: vb - va };
-        html += `<div class="nj-res"><p class="nj-res-head"><b>${esc(lineName(l))}</b>：${a}年 ${fmt(va)}人 → ${b}年 ${fmt(vb)}人</p>
-          <dl><div><dt>何人増減</dt><dd>${t.diff}</dd></div><div><dt>何％増減</dt><dd>${t.pct}</dd></div><div><dt>何倍</dt><dd>${t.ratio}</dd></div></dl>
-          ${t.zero ? `<p class="fine">比較元（${a}年）が0人のため、増減率と倍率は計算できません。</p>` : ""}</div>`;
-        lines.push(`${lineName(l)}：${a}年→${b}年 ${t.diff}${t.zero ? "" : `（${t.pct}、${t.ratio}）`}`);
-      });
-      if (state.a > state.b) html += '<p class="fine">比較元が新しい年なので、古い年→新しい年の順に並べ替えて計算しています。</p>';
-      if ((state.t === "all" || state.t === "em") && a < TYPE.compul.from && b >= TYPE.compul.from) html += `<p class="fine">${a}年は義務教育学校がまだない年です（その子どもは小学校・中学校に数えられていました）。</p>`;
-      const w = (c, k) => { const x = ch[c + k]; return `${moveWord(x.d)}（${fmt(x.va)}人→${fmt(x.vb)}人）`; };
-      const tn = T[state.t].short;
-      if (L.length === 1) {
-        const x = ch[L[0].c + L[0].k], who = `${areaName(L[0].c)}の${what(state.t, L[0].k)}は、`;
-        say = x.d === 0 ? `${who}${a}年も${b}年も${fmt(x.va)}人で、変わっていません。` : `${who}${a}年の${fmt(x.va)}人から${b}年の${fmt(x.vb)}人へ${fmt(Math.abs(x.d))}人${x.d > 0 ? "増えました" : "減りました"}。`;
-      } else if (!both) say = `${a}年→${b}年の${what(state.t, state.s)}は、${regs.map((c) => `${areaName(c)}が${w(c, state.s)}`).join("、")}でした。`;
-      else if (regs.length === 1) say = `${a}年→${b}年で、${areaName(regs[0])}の${tn}の外国籍の児童生徒は、公立が${w(regs[0], "p")}、私立が${w(regs[0], "s")}でした。`;
-      else say = `${a}年→${b}年の${tn}の外国籍の児童生徒は、${regs.map((c) => `${areaName(c)}が公立${moveWord(ch[c + "p"].d)}・私立${moveWord(ch[c + "s"].d)}`).join("、")}でした。`;
-    }
-    if (state.same && state.a) html = `<p class="cmp-msg" role="status">比較元と比較先に同じ年は選べないため、比較元を${state.a}年にしました。</p>` + html;
-    state.same = false;
-    $("nj-result").innerHTML = html;
-    state.cmpLines = lines;
     if (!both) {
       const peaks = regs.map((c) => ({ c, ...ys.map((y) => ({ y, v: val(y, c, state.t, state.s) })).reduce((m, p) => (p.v > m.v ? p : m)) }));
-      say += peaks.length > 1
+      say = peaks.length > 1
         ? `表示している調査年の中で最も多いのは、${peaks.map((p) => `${areaName(p.c)}が${p.y}年（${fmt(p.v)}人）`).join("、")}です。`
         : `表示している調査年の中で最も多いのは${peaks[0].y}年（${fmt(peaks[0].v)}人）です。`;
     }
     $("nj-trend-say").textContent = say;
+    $("nj-trend-say").hidden = !say;
     $("nj-trend-note").textContent = `点は各年5月1日現在の人数です（調査は毎年）。${state.t === "high" || state.t === "all" ? "高等学校は全日制・定時制の数です。" : ""}`;
     const head = `<tr><th scope="col">調査年</th><th scope="col">基準日</th>${L.map((l) => `<th scope="col" class="num">${esc(areaName(l.c))}<br>${esc(T[state.t].short)}${l.k === "all" ? "" : "・" + OWN[l.k]}</th>`).join("")}</tr>`;
     const body = YEARS.slice().reverse().map((y) => `<tr><th scope="row">${y}年（${Y[y].fy}）</th><td>${jpDate(Y[y].as_of)}</td>${L.map((l) => { const v = val(y, l.c, state.t, l.k); return `<td class="num">${v == null ? "—" : fmt(v) + "人"}</td>`; }).join("")}</tr>`).join("");
     $("nj-trend-table").innerHTML = `<table class="plain"><thead>${head}</thead><tbody>${body}</tbody></table><p class="fine">—：都道府県別が公表されていない年、または学校の種類がまだない年（0人ではありません）。</p>`;
     drawTrend();
-    const text = `外国籍の児童生徒（学校基本調査）｜${regs.map(areaName).join("・")}の${T[state.t].short}${state.s === "all" ? "" : "・" + OWN[state.s]}の推移\n${lines.join("\n")}\n${SITE_NAME}`;
+    const text = `外国籍の児童生徒（学校基本調査）｜${regs.map(areaName).join("・")}の${T[state.t].short}${state.s === "all" ? "" : "・" + OWN[state.s]}の推移\n${state.cmpLines.join("\n")}\n${SITE_NAME}`;
     setX("trend", text, pageUrl("trend"));
+  }
+
+  // ---- 2つの年の比較：線（地域×区分）ごとに2本の横棒（0から。全部の棒で同じ尺度）。過去の年は薄い色＋同じ色の枠 ----
+  const val0 = (v) => (v == null ? "データなし" : fmt(v) + "人");
+  function renderCompare(regs, L) {
+    const a = state.a, b = state.b, areas = esc(regs.map(areaName).join("・"));
+    state.cmpLines = [];
+    if (!a) {
+      $("nj-cmp-sub").innerHTML = `<b>${areas}</b>｜${esc(T[state.t].label)}`;
+      $("nj-result").innerHTML = '<p class="cmp-msg">今の地域と学校の種類では、比べられる2つの年がありません。</p>';
+      return;
+    }
+    $("nj-cmp-sub").innerHTML = `<b>${areas}</b>｜${a}年 → ${b}年・${esc(T[state.t].label)}`;
+    const cells = regs.map((c) => L.filter((l) => l.c === c).map((l) => ({ c, k: l.k, va: val(a, c, state.t, l.k), vb: val(b, c, state.t, l.k) })));
+    const max = Math.max(1, ...cells.flat().flatMap((x) => [x.va || 0, x.vb || 0]));
+    const lines = state.cmpLines;
+    const bar = (y, v, k, past) => `<li><span class="nj-cy">${y}年</span><span class="nj-ctrack">${v ? `<span class="nj-cbar" style="width:calc((100% - 5.5em) * ${(v / max).toFixed(4)});background:${past ? SHADE[k] : COLOR[k]};border-color:${COLOR[k]}"></span>` : ""}<span class="nj-cv${v == null ? " na" : ""}">${val0(v)}</span></span></li>`;
+    let html = cells.map((row, i) => `<div class="nj-cg">${regs.length > 1 ? `<p class="nj-cg-h">${esc(areaName(regs[i]))}</p>` : ""}` + row.map((x) => {
+      const t = changeText(x.va, x.vb);
+      lines.push(`${lineName(x)}：${a}年 ${val0(x.va)}→${b}年 ${val0(x.vb)}${t.na ? "" : t.zero ? `（${t.diff}）` : `（${t.ratio}・${t.diff}）`}`);
+      const stat = t.na
+        ? `<p class="nj-cratio nj-na"><small>人数の倍率・増減率</small><b>データなし</b><small>${x.va == null ? a : b}年の数がありません</small></p>`
+        : (t.zero
+          ? `<p class="nj-cratio nj-na"><small>人数の倍率・増減率</small><b>算出できません</b><small>${a}年が0人のため</small></p>`
+          : `<p class="nj-cratio"><small>人数の倍率</small><b>${t.ratio}</b></p>`)
+          + `<dl class="nj-cmore"><div><dt>人数の変化</dt><dd>${t.diff}</dd></div>${t.zero ? "" : `<div><dt>増減率</dt><dd>${t.pct}</dd></div>`}</dl>`;
+      return `<div class="nj-cp"><h4><i class="nj-sw" style="background:${COLOR[x.k]}"></i>${CMP_NAME[x.k]}</h4>
+        <div class="nj-cp-body"><ul class="nj-cbars">${bar(a, x.va, x.k, true)}${bar(b, x.vb, x.k, false)}</ul><div class="nj-cstat">${stat}</div></div></div>`;
+    }).join("") + "</div>").join("");
+    const da = md(Y[a].as_of), db = md(Y[b].as_of);
+    const notes = [da === db ? `${a}年・${b}年とも${da}現在の人数です。` : `${a}年は${da}現在、${b}年は${db}現在の人数です。`];
+    if ((state.t === "all" || state.t === "em") && a < TYPE.compul.from && b >= TYPE.compul.from) notes.push(`${a}年は義務教育学校がまだない年です（その子どもは小学校・中学校に数えられていました）。`);
+    html += `<p class="fine nj-cnote">※${notes.join("")}</p>`;
+    $("nj-result").innerHTML = html;
   }
 
   function niceMax(v) {
@@ -401,7 +444,7 @@
   function prefData(o) {
     const P = pickBt([o.year], true), bt = P.bt, n = state.n;
     const D = { kind: "pref", two: false, o, bt, P, n, area: "全国", msgs: [], notes: [] };
-    if (P.fellBack) D.msgs.push(`${P.reasons[state.bt]}。${T.em.label}の多い順に並べています。`);
+    if (P.fellBack) D.msgs.push(`${P.reasons[state.bt]}。${rankBy("em", n)}に並べています。`);
     const all = CODES.map((c) => {
       const tr = trip(o.year, c, bt);
       return { name: N.prefs[c], code: c, ...partsOf(tr, n), raw: tr, key: pick(tr, n), total: pick(tr, n) };
@@ -415,9 +458,9 @@
     const tie = all.slice(D.rows.length).filter((r) => r.key === endKey).length;
     if (tie) D.notes.push(`${D.rows[D.rows.length - 1].rank}位と同じ数の都道府県がほかに${tie}あります（表示しておらず、上位${state.top}の割合にも含めていません）。`);
     D.prefix = "都道府県別";
-    D.head = `都道府県別：${when(o)}・${what(bt, n)}の多い順・${state.top === 47 ? "全47都道府県" : `上位${state.top}`}`;
+    D.head = `都道府県別：${when(o)}・${rankBy(bt, n)}・${state.top === 47 ? "全47都道府県" : `上位${state.top}`}`;
     D.title = `都道府県別 ${what(bt, n)}`;
-    D.notes.push("同じ数は同じ順位です。学校のある都道府県で数えた人数です。地域名を押すと、地図でその都道府県を開きます（地図の人数は最新の年で、「合計」は特別支援学校を含みません）。");
+    D.notes.push("同じ数は同じ順位です。学校のある都道府県で数えた人数です。");
     D.srcKeys = srcKeys([bt], true);
     return D;
   }
@@ -467,9 +510,6 @@
     const [lo, hi] = state.ya < state.yb ? [state.ya, state.yb] : [state.yb, state.ya];
     const A = Y[lo], B = Y[hi], kind = state.v, area = state.pref;
     const D = { kind, two: true, o: B, n: kind === "owner" ? "all" : state.n, ya: lo, yb: hi, area: areaName(area), msgs: [], notes: [], rows: [] };
-    if (state.sameBd) D.msgs.push(`比較元と比較先に同じ年は選べないため、比較元を${state.ya}年にしました。`);
-    state.sameBd = false;
-    if (state.ya > state.yb) D.msgs.push("比較元が新しい年なので、古い年→新しい年の順に並べ替えて比べています。");
     if (kind === "owner") {
       D.P = pickBt([lo, hi], !!area); D.bt = D.P.bt;
       if (D.P.fellBack) D.msgs.push(`${D.P.reasons[state.bt]}。${T.em.label}で比べています。`);
@@ -514,8 +554,8 @@
         const mx = ok.reduce((m, r) => (r.d > m.d ? r : m)), mn = ok.reduce((m, r) => (r.d < m.d ? r : m));
         s += `比べられる${ok.length}項目のうち、増えたのは${up}項目、減ったのは${down}項目です。`;
         const parts = [];
-        if (mx.d > 0) parts.push(`増加が最も大きいのは${mx.name}（${fmt(mx.d)}人増）`);
-        if (mn.d < 0) parts.push(`減少が最も大きいのは${mn.name}（${fmt(-mn.d)}人減）`);
+        if (mx.d > 0) parts.push(`増加が最も大きいのは${mx.name}（${fmt(mx.d)}人増加）`);
+        if (mn.d < 0) parts.push(`減少が最も大きいのは${mn.name}（${fmt(-mn.d)}人減少）`);
         if (parts.length) s += parts.join("、") + "です。";
       }
       const skip = D.rows.filter((r) => r.status !== "ok");
@@ -544,10 +584,11 @@
 
   function renderBreakdown() {
     const two = state.v !== "pref" && state.mode === "two";
-    const yopt = (sel) => YEARS.slice().reverse().map((y) => `<option value="${y}"${y === sel ? " selected" : ""}>${y}年（${Y[y].fy}）</option>`).join("");
-    $("nj-y").innerHTML = yopt(state.y);
-    $("nj-ya").innerHTML = yopt(state.ya);
-    $("nj-yb").innerHTML = yopt(state.yb);
+    const yopt = (sel, list) => list.slice().reverse().map((y) => `<option value="${y}"${y === sel ? " selected" : ""}>${y}年（${Y[y].fy}）</option>`).join("");
+    $("nj-y").innerHTML = yopt(state.y, YEARS);
+    // 2年の比較：過去の年は新しい年より前だけ、新しい年は最初の年より後だけ
+    $("nj-ya").innerHTML = yopt(state.ya, YEARS.filter((y) => y < state.yb));
+    $("nj-yb").innerHTML = yopt(state.yb, YEARS.slice(1));
     $("nj-mode-wrap").hidden = state.v === "pref";
     $("nj-y-wrap").hidden = two;
     $("nj-ya-wrap").hidden = !two;
@@ -619,12 +660,13 @@
     const detail = (r) => (r.none ? r.none : !isOwner && D.n === "all" ? own3(r.raw) : `${isOwner ? r.name : OWN[D.n]} ${fmt(r.total)}人`);
     $("nj-bars").innerHTML = `<ol class="nj-rows${D.kind === "pref" ? " nj-ranked" : ""}">` + rows.map((r, i) => {
       const name = D.kind === "pref"
-        ? `<span class="nj-rank">${r.rank}</span><a href="index.html?pref=${r.code}&amp;view=stats&amp;layer=foreign&amp;variant=${MAP_VARIANT[D.bt] || "all"}" title="地図で${esc(r.name)}を開く">${esc(r.name)}</a>`
+        ? `<span class="nj-rank">${r.rank}</span><button type="button" class="nj-plink" data-pref="${r.code}" title="このページで${esc(r.name)}のデータを表示">${esc(r.name)}</button>`
         : esc(r.name);
       const sel = D.kind === "pref" && r.code === state.pref ? " nj-sel" : "";
       return `${D.extra && r === D.extra ? '<li class="nj-gap" aria-hidden="true">…</li>' : ""}<li class="nj-row${sel}" tabindex="0" data-i="${i}" aria-label="${esc(r.name)}：${esc(detail(r))}">
         <span class="nj-name">${name}</span><span class="nj-track">${segs(r)}</span><span class="nj-v">${r.none ? "—" : fmt(r.total) + "人"}</span></li>`;
-    }).join("") + '</ol><div class="nj-tip" id="nj-btip" hidden></div>';
+    }).join("") + '</ol><div class="nj-tip" id="nj-btip" hidden></div>'
+      + (D.kind === "pref" ? '<p class="nj-hint">都道府県名を押すと、このページでその地域のデータを表示します。</p>' : "");
     bindTips(rows, detail);
     $("nj-bd-say").textContent = sayOf(D);
     const cell = (v) => `<td class="num">${v == null ? "—" : fmt(v) + "人"}</td>`;
@@ -639,32 +681,32 @@
     const body = list.map((r) => `<tr${isPref && r.code === state.pref ? ' class="on"' : ""}>${isPref ? `<td class="num">${r.rank}</td>` : ""}<th scope="row">${esc(r.name)}</th>${r.raw ? r.raw.map(cell).join("") + cell(pick(r.raw, "all")) : cell(null).repeat(4)}</tr>`).join("");
     const sum = list.reduce((s, r) => s + (r.total || 0), 0);
     $("nj-bd-table").innerHTML = `<table class="plain"><thead><tr>${isPref ? '<th scope="col" class="num">順位</th>' : ""}<th scope="col">${isPref ? "都道府県" : "学校の種類"}</th><th scope="col" class="num">国立</th><th scope="col" class="num">公立</th><th scope="col" class="num">私立</th><th scope="col" class="num">合計</th></tr></thead><tbody>${body}</tbody></table>`
-      + `<p class="fine">${isPref ? `全47都道府県を${OWN_ONLY[D.n]}の多い順に並べています（${T[D.bt].label}・${OWN_ONLY[D.n]}の全国 ${fmt(sum)}人）。` : `${OWN_ONLY[D.n]}の、表示している学校の合計 ${fmt(sum)}人。`}—：区分がない、または公表されていない数（0人ではありません）。</p>`;
+      + `<p class="fine">${isPref ? `全47都道府県を${rankBy(D.bt, D.n)}に並べています（${T[D.bt].label}・${OWN_ONLY[D.n]}の全国 ${fmt(sum)}人）。` : `${OWN_ONLY[D.n]}の、表示している学校の合計 ${fmt(sum)}人。`}—：区分がない、または公表されていない数（0人ではありません）。</p>`;
   }
 
   function renderPair(D) {
-    $("nj-bd-legend").innerHTML = `<span class="nj-lg"><i class="nj-sw" style="background:${PAIR.a}"></i>${D.ya}年（比較元）</span><span class="nj-lg"><i class="nj-sw" style="background:${PAIR.b}"></i>${D.yb}年（比較先）</span><span class="nj-unit">単位：人</span>`;
+    $("nj-bd-legend").innerHTML = `<span class="nj-lg"><i class="nj-sw" style="background:${PAIR.a}"></i>${D.ya}年（過去）</span><span class="nj-lg"><i class="nj-sw" style="background:${PAIR.b}"></i>${D.yb}年（新しい年）</span><span class="nj-unit">単位：人</span>`;
     const max = Math.max(1, ...D.rows.flatMap((r) => [r.a || 0, r.b || 0]));
     const bar = (v, c) => (v ? `<span class="nj-bar" style="width:${(v / max) * 100}%;background:${c}"></span>` : '<span class="nj-bar"></span>');
     const num = (v) => (v != null ? fmt(v) : "—");
     const diffText = (r) => {
       if (r.status !== "ok") return r.why;
       const t = changeText(r.a, r.b);
-      return `${t.diff}（${t.zero ? "比較元が0人のため増減率なし" : t.pct}）`;
+      return `${t.diff}（${t.zero ? "過去の年が0人のため増減率は算出できません" : `増減率 ${t.pct}`}）`;
     };
     const detail = (r) => `${D.ya}年 ${num(r.a)}・${D.yb}年 ${num(r.b)}／${diffText(r)}`;
     $("nj-bars").innerHTML = '<ol class="nj-rows">' + D.rows.map((r, i) => `<li class="nj-row nj-pair${r.status === "ok" ? "" : " nj-skip"}" tabindex="0" data-i="${i}" aria-label="${esc(r.name)}：${esc(detail(r))}">
         <span class="nj-name">${esc(r.name)}${r.status === "ok" ? "" : '<small>比べません</small>'}</span><span class="nj-track2">${bar(r.a, PAIR.a)}${bar(r.b, PAIR.b)}</span><span class="nj-v2"><span>${esc(num(r.a))}</span><b>${esc(num(r.b))}</b></span></li>`).join("") + '</ol><div class="nj-tip" id="nj-btip" hidden></div>';
     bindTips(D.rows, detail);
     $("nj-bd-say").textContent = sayOf(D);
-    const pct = (r) => (r.status !== "ok" ? "—" : r.pct === null ? "計算できません（比較元0人）" : changeText(r.a, r.b).pct);
-    const dif = (r) => (r.status !== "ok" ? "比べません" : r.d > 0 ? `+${fmt(r.d)}人` : r.d < 0 ? `−${fmt(-r.d)}人` : "±0人");
+    const pct = (r) => (r.status !== "ok" ? "—" : r.pct === null ? "算出できません（過去の年が0人）" : changeText(r.a, r.b).pct);
+    const dif = (r) => (r.status !== "ok" ? "比べません" : moveWord(r.d));
     const td = (v) => `<td class="num">${v == null ? "—" : fmt(v) + "人"}</td>`;
     const tot = { name: D.partial ? "比べられる項目の合計" : "全体", a: D.ta, b: D.tb, status: "ok", ...change(D.ta, D.tb) };
     const body = D.rows.concat([tot]).map((r) => `<tr${r === tot ? ' class="on"' : ""}><th scope="row">${esc(r.name)}</th>${td(r.a)}${td(r.b)}<td class="num">${dif(r)}</td><td class="num">${pct(r)}</td></tr>`).join("");
     const whys = [...new Set(D.rows.filter((r) => r.status !== "ok").map((r) => r.why))];
-    $("nj-bd-table").innerHTML = `<table class="plain"><thead><tr><th scope="col">${D.kind === "owner" ? "区分" : "学校の種類"}</th><th scope="col" class="num">${D.ya}年</th><th scope="col" class="num">${D.yb}年</th><th scope="col" class="num">増減</th><th scope="col" class="num">増減率</th></tr></thead><tbody>${body}</tbody></table>`
-      + `<p class="fine">${esc(D.kind === "owner" ? T[D.bt].label : OWN_ONLY[D.n])}。${whys.map((w) => esc(w) + "。").join("")}比較元が0人の項目は増減率を計算しません。</p>`;
+    $("nj-bd-table").innerHTML = `<table class="plain"><thead><tr><th scope="col">${D.kind === "owner" ? "区分" : "学校の種類"}</th><th scope="col" class="num">${D.ya}年</th><th scope="col" class="num">${D.yb}年</th><th scope="col" class="num">人数の変化</th><th scope="col" class="num">増減率</th></tr></thead><tbody>${body}</tbody></table>`
+      + `<p class="fine">${esc(D.kind === "owner" ? T[D.bt].label : OWN_ONLY[D.n])}。${whys.map((w) => esc(w) + "。").join("")}過去の年が0人の項目は、増減率を算出できません。</p>`;
   }
 
   function setX(k, text, url) {
@@ -735,12 +777,12 @@
       return [Object.assign({}, base, {
         title: D.title,
         subtitle: [`${D.area}・${scope}・${D.ya}年（${A.fy}）→${D.yb}年（${o.fy}）`, `${D.partial ? "比べられる項目の合計" : "全体"} ${fmt(D.ta)}人→${fmt(D.tb)}人（${moveWord(D.tb - D.ta)}）`],
-        legend: [{ color: PAIR.a, label: `${D.ya}年（比較元）` }, { color: PAIR.b, label: `${D.yb}年（比較先）` }],
+        legend: [{ color: PAIR.a, label: `${D.ya}年（過去）` }, { color: PAIR.b, label: `${D.yb}年（新しい年）` }],
         rows: D.rows.map((r) => ({
           name: r.status === "ok" ? r.name : r.name + "※",
           pair: [{ n: r.a || 0, color: PAIR.a, value: r.a == null ? "—" : fmt(r.a) }, { n: r.b || 0, color: PAIR.b, value: r.b == null ? "—" : fmt(r.b) }],
           value: "",
-          sub: r.status === "ok" ? `${changeText(r.a, r.b).diff}${r.pct === null ? "" : `（${changeText(r.a, r.b).pct}）`}` : "比べません（数がない年がある）",
+          sub: r.status === "ok" ? `${changeText(r.a, r.b).diff}${r.pct === null ? "" : `（増減率 ${changeText(r.a, r.b).pct}）`}` : "比べません（数がない年がある）",
         })),
         foot: [srcLine(o, D.srcKeys, A)].concat(D.msgs, whys.length ? ["※は比べていない項目：" + whys.join("。") + "。"] : [], [FOOT_SCOPE]),
         file: `gaikoku-jido_${D.kind}_2years_${D.kind === "owner" ? D.bt : D.n}_${state.pref || "japan"}_${D.ya}-${D.yb}_${dateStamp()}.png`,
@@ -754,7 +796,7 @@
     return chunks.map((rows, k) => {
       const range = chunks.length > 1 ? `${rows[0].rank}〜${rows[rows.length - 1].rank}位` : "";
       const sub = [`${D.area}・${o.year}年（${o.fy}）${md(o.as_of)}現在・${D.kind === "pref" ? T[D.bt].label + "・" + OWN_ONLY[D.n] : scope}`];
-      if (D.kind === "pref") sub.push(`多い順・${state.top === 47 ? `全47都道府県のうち${range}` : `上位${state.top}`}`);
+      if (D.kind === "pref") sub.push(`${rankBy(D.bt, D.n)}・${state.top === 47 ? `全47都道府県のうち${range}` : `上位${state.top}`}`);
       if (shownSum != null) sub.push(`合計 ${fmt(shownSum)}人`);
       return Object.assign({}, base, {
         title: D.title, subtitle: sub,
