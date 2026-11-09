@@ -1,0 +1,135 @@
+<div class="wrap narrow" id="nj">
+  <h1>外国籍の子ども — 人数・内訳・推移</h1>
+  <p class="lead">小・中・高等学校などに通う外国籍の児童生徒の数です（国立・公立・私立）。日本語指導が必要な子どもの数や、日本語学校の留学生の数とは別の統計です。</p>
+  <details class="nj-howto" id="nj-howto"><summary>この統計の見方</summary>
+    <dl>
+      <dt>どんな数？</dt>
+      <dd>文部科学省「学校基本調査」で、学校が毎年5月1日現在の「外国人」の児童・生徒として報告した人数です。小学校・中学校は「外国人児童数」「外国人生徒数」、特別支援学校は「外国人在学者数」という表の数を使っています。</dd>
+      <dt>どこの人数？</dt>
+      <dd>学校のある都道府県で数えた人数です。子どもが住んでいる都道府県ではありません。</dd>
+      <dt>含まれない子どもは？</dt>
+      <dd>小学校・中学校などとして認められていない外国人学校（各種学校など）に通う子どもや、学校に通っていない子どもは含みません。高等学校は全日制・定時制の数で、通信制は含みません。</dd>
+      <dt>日本語指導が必要な子どもの数とのちがいは？</dt>
+      <dd>日本語指導の調査は、国籍ではなく日本語の指導が必要かどうかで数え、公立学校だけが対象です（日本国籍の子どもも含む）。この数は国籍で数え、国立・私立も含みます。別の調査なので、足したり引いたり、割合を出したりはできません。</dd>
+    </dl>
+    <p class="fine">出典：文部科学省「学校基本調査」（各年度、e-Stat）。都道府県別の数は、報告書に載っていない集計としてe-Statで公表されている表を使っています。</p>
+  </details>
+  <p class="fine" id="nj-loading">読み込んでいます…</p>
+  <p class="cmp-msg" id="nj-error" role="alert" hidden>データを読み込めませんでした。通信の状態を確かめて、ページを開き直してください。</p>
+  <div id="nj-main" hidden>
+    <div class="rk-tools nj-tools">
+      <label class="rk-field">地域
+        <select id="nj-pref"></select></label>
+    </div>
+    <nav class="nj-jump" id="nj-jump" aria-label="見たい内容へ移動">
+      <button type="button" data-go="trend">増減を見る</button><button type="button" data-go="pref">地域順位を見る</button><button type="button" data-go="type">学校種を見る</button><button type="button" data-go="owner">公立・私立を見る</button>
+    </nav>
+    <section class="nj-kpi" aria-labelledby="nj-kpi-title">
+      <h2 class="vh" id="nj-kpi-title">最新の調査の人数</h2>
+      <p class="nj-kpi-when" id="nj-kpi-when"></p>
+      <ul class="nj-kpis nj-k4" id="nj-kpis"></ul>
+      <p class="fine" id="nj-kpi-note"></p>
+    </section>
+
+    <section class="nj-card" id="trend" aria-labelledby="nj-trend-title">
+      <div class="rk-head"><h2 id="nj-trend-title" tabindex="-1">人数の推移</h2><div class="rk-acts" id="nj-trend-acts"></div></div>
+      <div class="rk-tools nj-tools">
+        <label class="rk-field">学校の種類
+          <select id="nj-t"></select></label>
+        <div class="rk-field"><span id="nj-s-label">国立・公立・私立</span>
+          <div class="seg" id="nj-s" role="group" aria-labelledby="nj-s-label"><button type="button" data-s="all">合計</button><button type="button" data-s="p">公立</button><button type="button" data-s="s">私立</button><button type="button" data-s="both">公立と<wbr>私立</button></div></div>
+        <label class="rk-field">比べる地域（任意）
+          <select id="nj-pref2"></select></label>
+      </div>
+      <p class="cmp-msg" id="nj-trend-msg" role="status" hidden></p>
+      <div class="nj-legend" id="nj-trend-legend"></div>
+      <div class="nj-chart" id="nj-trend-chart"></div>
+      <p class="fine" id="nj-trend-note"></p>
+      <div class="nj-cmp">
+        <h3>2つの調査年を比べる</h3>
+        <div class="nj-quick" id="nj-quick" role="group" aria-label="最新の調査と比べる年を選ぶ"></div>
+        <div class="rk-tools nj-tools">
+          <label class="rk-field">比較元の調査年
+            <select id="nj-a"></select></label>
+          <label class="rk-field">比較先の調査年
+            <select id="nj-b"></select></label>
+        </div>
+        <div class="nj-result" id="nj-result" aria-live="polite"></div>
+      </div>
+      <p class="nj-say" id="nj-trend-say"></p>
+      <details class="nj-table"><summary>数値を表で見る</summary><div class="tablewrap" id="nj-trend-table"></div></details>
+    </section>
+
+    <section class="nj-card" id="breakdown" aria-labelledby="nj-bd-title">
+      <div class="rk-head"><h2 id="nj-bd-title" tabindex="-1">内訳を見る</h2><div class="rk-acts" id="nj-bd-acts"></div></div>
+      <div class="rk-tools nj-tools">
+        <div class="rk-field"><span id="nj-v-label">内訳</span>
+          <div class="seg" id="nj-v" role="group" aria-labelledby="nj-v-label"><button type="button" data-v="pref">都道府県別</button><button type="button" data-v="type">学校種別</button><button type="button" data-v="owner">国立・公立・私立別</button></div></div>
+        <div class="rk-field" id="nj-n-wrap"><span id="nj-n-label">国立・公立・私立</span>
+          <div class="seg" id="nj-n" role="group" aria-labelledby="nj-n-label"><button type="button" data-n="all">合計</button><button type="button" data-n="p">公立</button><button type="button" data-n="s">私立</button></div></div>
+        <label class="rk-field" id="nj-bt-wrap">学校の種類
+          <select id="nj-bt"></select></label>
+      </div>
+      <div class="rk-tools nj-tools">
+        <div class="rk-field" id="nj-mode-wrap"><span id="nj-mode-label">表示</span>
+          <div class="seg" id="nj-mode" role="group" aria-labelledby="nj-mode-label"><button type="button" data-mode="one">1年を見る</button><button type="button" data-mode="two">2年を比べる</button></div></div>
+        <label class="rk-field nj-year" id="nj-y-wrap">調査年
+          <select id="nj-y"></select></label>
+        <label class="rk-field nj-year" id="nj-ya-wrap">比較元の調査年
+          <select id="nj-ya"></select></label>
+        <label class="rk-field nj-year" id="nj-yb-wrap">比較先の調査年
+          <select id="nj-yb"></select></label>
+        <div class="rk-field" id="nj-top-wrap"><span id="nj-top-label">表示件数</span>
+          <div class="seg" id="nj-top" role="group" aria-labelledby="nj-top-label"><button type="button" data-top="5">上位5</button><button type="button" data-top="10">上位10</button><button type="button" data-top="47">全47</button></div></div>
+      </div>
+      <p class="nj-why" id="nj-n-why" hidden></p>
+      <h3 class="nj-bd-head" id="nj-bd-head"></h3>
+      <p class="cmp-msg" id="nj-bd-msg" role="status" hidden></p>
+      <div class="nj-legend" id="nj-bd-legend"></div>
+      <div class="nj-bars" id="nj-bars"></div>
+      <p class="nj-say" id="nj-bd-say"></p>
+      <p class="fine" id="nj-bd-note"></p>
+      <details class="nj-table"><summary>数値を表で見る</summary><div class="tablewrap" id="nj-bd-table"></div></details>
+    </section>
+
+    <section class="nj-notes" aria-labelledby="nj-notes-title">
+      <h2 id="nj-notes-title">この数字を見るときの注意</h2>
+      <ul class="nj-notes-list">
+        <li>学校のある都道府県で数えた人数です。住んでいる都道府県ではありません。</li>
+        <li>外国人学校（各種学校など）に通う子どもや、学校に通っていない子どもは含みません。</li>
+        <li>日本語指導が必要な子どもの数とは別の調査です。足したり引いたりできません。</li>
+      </ul>
+      <details class="more"><summary>くわしい注意と調査年ごとのちがい</summary>
+        <ul>
+          <li>都道府県別の数は、小学校・中学校が2009年から、高等学校・中等教育学校・特別支援学校が2018年から公表されています。それより前の高等学校などは全国の数だけです。このため、都道府県の「合計」は2018年から、「小・中学校」は2009年から見られます。</li>
+          <li>義務教育学校は2016年にできた学校の種類です。それより前は0人ではなく区分がありません。義務教育学校の子どもは、それより前は小学校・中学校に数えられていたため、「小・中学校」には義務教育学校を含めています。</li>
+          <li>高等学校は全日制・定時制の数です（通信制は含みません）。特別支援学校は幼稚部から高等部までの在学者数です。</li>
+          <li>地図の「外国籍の小中高校生」は特別支援学校を含まないため、このページの「合計」より少なくなります。</li>
+          <li>基準日は毎年5月1日です。人数の多さだけで、地域への影響や支援が足りているかどうかは判断できません。</li>
+        </ul>
+        <div class="tablewrap" id="nj-src-table"></div>
+      </details>
+    </section>
+  </div>
+</div>
+<dialog id="img-dialog" aria-labelledby="img-title">
+  <h2 id="img-title">画像を保存</h2>
+  <p class="fine" id="img-what"></p>
+  <div class="seg" id="img-page" role="group" aria-label="画像に入れる範囲" hidden></div>
+  <p class="fine" id="img-status" aria-live="polite"></p>
+  <img id="img-preview" class="img-portrait" alt="保存する画像のプレビュー" hidden>
+  <div class="img-acts"><a class="btn primary" id="img-save" hidden>PNGを保存</a><button type="button" class="btn" id="img-close">閉じる</button></div>
+  <p class="img-saved" id="img-saved" role="status" hidden>保存を始めました。保存先（「ダウンロード」や写真アプリなど）を確かめてから、下の手順でXに投稿できます。</p>
+  <section class="img-next" aria-labelledby="img-next-title">
+    <h3 id="img-next-title">保存した画像をXに投稿するには</h3>
+    <p class="img-warn"><b>画像は自動では添付されません。保存してからXで添付してください。</b></p>
+    <ol>
+      <li>「PNGを保存」で画像を保存する（スマホではプレビューを長押しして保存もできます）</li>
+      <li>「Xの投稿画面を開く」を押す（下の投稿文が入った画面が開きます）</li>
+      <li>Xの投稿画面の画像ボタンから、保存した画像を選ぶ</li>
+    </ol>
+    <p class="img-x-text" id="img-x-text"></p>
+    <p><a class="btn" id="img-x" target="_blank" rel="noopener">Xの投稿画面を開く</a></p>
+  </section>
+  <p class="fine">画像はこの端末の中で作られ、どこにも送信されません。数字は画面と同じデータから作っています。</p>
+</dialog>

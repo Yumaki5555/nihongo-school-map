@@ -112,6 +112,7 @@
         g.restOf = rest;
         g.note = `※合計には、内訳の3行にない義務教育学校・中等教育学校の児童生徒（${esc(nm("x"))} ${fmt(rest(state.a))}人、${esc(nm("y"))} ${fmt(rest(state.b))}人）も入っています。そのため3行を足しても合計になりません。`;
       }
+      if (ind.id === "foreign") g.note = (g.note || "") + ` <a href="foreign.html?cmp=${state.a}-${state.b}#trend">2つの都道府県の推移・内訳を見る</a>`;
       if (ind.id === "nihongo") g.note = `※合計＝外国籍＋日本国籍です。「日本国籍」は帰化した人の数ではありません（海外から帰国した子どもなども含みます）。外国籍の児童生徒の数とは別の調査なので、足したり引いたりできません。<a href="nihongo.html?cmp=${state.a}-${state.b}#trend">2つの都道府県の推移・内訳を見る</a>`;
       groups.push(g);
     });

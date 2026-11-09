@@ -510,3 +510,8 @@ table.plain { width: 100%; border-collapse: collapse; font-size: .92rem; }
   .seg button { white-space: normal; word-break: keep-all; overflow-wrap: normal; line-height: 1.25; padding: 4px 8px; }
   .nj-jump { display: grid; grid-template-columns: 1fr 1fr; }
 }
+/* とても狭い画面（320px前後）：メニュー6項目を1行におさめるため、すき間を詰める */
+@media (max-width: 359px) {
+  .site-menu { gap: 0; }
+  .site-menu a { padding: 2px 1px; }
+}

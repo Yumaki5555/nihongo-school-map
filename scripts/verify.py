@@ -249,13 +249,13 @@ ok("2県比較：外国籍の児童生徒の合計に、内訳にない義務教
 ok("2県比較：同じ県は比べず案内し、選んだ県はURL（cmp=）に残す", "異なる都道府県を選択してください" in cj and "?cmp=${state.a}-${state.b}" in cj, "")
 ok("2県比較：Xで共有と縦長の画像保存（ブラウザの中で作る）", 'id="cmp-share"' in ch and 'id="cmp-img"' in ch and 'id="img-dialog"' in ch and "map-image.js" in ch and 'kind: "compare"' in cj and "function renderCompare" in (DOCS / "map-image.js").read_text("utf8"), "")
 _menus = {}
-for _pg in ("index", "ranking", "compare", "nihongo", "guide", "sources"):
+for _pg in ("index", "ranking", "compare", "nihongo", "foreign", "guide", "sources"):
     _h = (DOCS / f"{_pg}.html").read_text("utf8")
     _m = re.search(r'<nav class="site-menu"[^>]*>(.*?)</nav>', _h, re.S)
     _f = re.search(r'<footer class="site-foot">(.*?)</footer>', _h, re.S)
     _menus[_pg] = ([re.sub(r"<[^>]+>", "", t) for t in re.findall(r"<a [^>]*>(.*?)</a>", _m.group(1))] if _m else None, _f.group(1) if _f else "")
-ok("メニューは 地図・ランキング・都道府県比較・日本語指導・3分でわかる の順。出典とお問い合わせはメニューに入れず、どのページも下部にある",
-   all(m == ["地図", "ランキング", "都道府県比較", "日本語指導", "3分でわかる"] and 'href="sources.html"' in f and "情報の訂正・お問い合わせ" in f for m, f in _menus.values()), str({k: v[0] for k, v in _menus.items()}))
+ok("メニューは 地図・ランキング・都道府県比較・日本語指導・外国籍の子ども・3分でわかる の順。出典とお問い合わせはメニューに入れず、どのページも下部にある",
+   all(m == ["地図", "ランキング", "都道府県比較", "日本語指導", "外国籍の子ども", "3分でわかる"] and 'href="sources.html"' in f and "情報の訂正・お問い合わせ" in f for m, f in _menus.values()), str({k: v[0] for k, v in _menus.items()}))
 
 # ---- 入口サイトが読む形 ----
 ok("regions.json の形（prefs[県].n・cities・generated）", regions.get("generated") and len(regions["prefs"]) == 47 and all("n" in p and "cities" in p for p in regions["prefs"].values()), "")
@@ -263,9 +263,9 @@ ok("regions の校数の合計＝日本語学校の校数", sum(p["n"] for p in 
 ok("regions に人数が入っていない", not re.search(r"enr_|cap_|size_|nat_pairs", json.dumps(regions)), "")
 
 # ---- ページ ----
-for page in ("index", "ranking", "compare", "nihongo", "guide", "sources", "map", "region", "school", "changes"):
+for page in ("index", "ranking", "compare", "nihongo", "foreign", "guide", "sources", "map", "region", "school", "changes"):
     ok(f"{page}.html がある", (DOCS / f"{page}.html").exists(), "")
-for page in ("index", "ranking", "compare", "nihongo", "guide", "sources"):
+for page in ("index", "ranking", "compare", "nihongo", "foreign", "guide", "sources"):
     h = (DOCS / f"{page}.html").read_text("utf8")
     ok(f"{page}.html に置き換え忘れがない", "{{" not in h and "[[" not in h, "")
     miss = [r for r in re.findall(r'(?:src|href)="([^"#:?]+)(?:\?[^"]*)?"', h) if not (DOCS / r).exists()]
@@ -286,9 +286,26 @@ ok("日本語指導：義務教育学校は2016年より前は区分なし（0�
 ok("日本語指導：言語別の和＝全国", all(sum(L["nat"]) == y["nat"][k] for y in nj["years"] for k, L in y["lang"].items() if L), "")
 ok("日本語指導：ネパール語は2025年だけ（それ以前は0にしない）", all(("ネパール語" in L["cats"]) == (y["year"] == 2025) for y in nj["years"] for L in y["lang"].values() if L), "")
 ok("日本語指導：すべての値に出典の表がある", all(y["src"] and all(s["url"].startswith("https://www.e-stat.go.jp/") for s in y["src"].values()) for y in nj["years"]), "")
-navs = {pg: (DOCS / f"{pg}.html").read_text("utf8") for pg in ("index", "ranking", "compare", "nihongo", "guide")}
+navs = {pg: (DOCS / f"{pg}.html").read_text("utf8") for pg in ("index", "ranking", "compare", "nihongo", "foreign", "guide")}
 ok("日本語指導：全ページのメニューで都道府県比較の次にある", all(re.search(r'href="compare.html"[^>]*><span>都道府県<wbr>比較</span></a><a href="nihongo.html"[^>]*><span>日本語<wbr>指導</span></a>', h) for h in navs.values()), "")
 ok("日本語指導：3分でわかるからリンクがある", 'href="nihongo.html"' in navs["guide"].split("<main")[-1], "")
+
+# ---- 外国籍の子どものページ（data/foreign_jido.json は fetch_foreign_jido.py で国の表と照合済み。ここでは公開用の写しを点検）----
+fj = load(DOCS / "data/foreign_jido.json")
+FJ = {y["year"]: y for y in fj["years"]}
+FT = {t["id"]: t for t in fj["types"]}
+ok("外国籍：都道府県は01〜47の47件で、名前の重複なし", sorted(fj["prefs"]) == [f"{i:02d}" for i in range(1, 48)] and len(set(fj["prefs"].values())) == 47, "")
+ok("外国籍：調査年は2009〜2025年の毎年（17回）、基準日は5月1日", sorted(FJ) == list(range(2009, 2026)) and all(y["as_of"] == f"{y['year']}-05-01" for y in fj["years"]), str(sorted(FJ)))
+ok("外国籍：2025年の全国（小97,536・中40,650・高20,864・義務1,414・中等388・特別支援2,116）", {k: sum(v) for k, v in FJ[2025]["nat"].items()} == {"elem": 97536, "mid": 40650, "high": 20864, "compul": 1414, "second": 388, "special": 2116}, "")
+_fo = ref["foreign"]
+ok("外国籍：地図の人数（stats.json の合計＝特別支援学校を除く5種類）と2025年が同じ（全国と47都道府県）", _fo["variants"][0]["national"] == sum(sum(FJ[2025]["nat"][t]) for t in ("elem", "mid", "high", "compul", "second")) and all(_fo["variants"][0]["values"][c] == sum(sum(FJ[2025]["pref"][t][c]) for t in ("elem", "mid", "high", "compul", "second")) for c in fj["prefs"]), "")
+ok("外国籍：都道府県の和＝全国（国立・公立・私立それぞれ、全年・全種類）", all([sum(v[i] for v in y["pref"][t].values()) for i in range(3)] == y["nat"][t] for y in fj["years"] for t in FT if y["pref"][t]), "")
+ok("外国籍：都道府県別の有無（小中2009年〜・義務2016年〜・高中等特支2018年〜。それより前は null で0にしない）", all((y["pref"][t] is not None) == (y["year"] >= FT[t]["pref_from"]) and (y["nat"][t] is not None) == (y["year"] >= FT[t]["from"]) for y in fj["years"] for t in FT), "")
+ok("外国籍：義務教育学校は2016年から（それより前は区分なし）", FT["compul"]["from"] == 2016 and all(FJ[y]["nat"]["compul"] is None for y in range(2009, 2016)), "")
+ok("外国籍：すべての値に出典の表（e-Stat）がある", all(all(s["url"].startswith("https://www.e-stat.go.jp/") for s in y["src"].values()) and set(y["src"]) == {f"{t}_{k}" for t in FT for k, have in (("nat", y["nat"][t]), ("pref", y["pref"][t])) if have} for y in fj["years"]), "")
+ok("外国籍：元の表の食いちがい（2016年義務教育学校7県・2020年愛知県）を記録している", len(fj["known"]) == 8 and sum(k["fixed"] for k in fj["known"]) == 1, str(len(fj["known"])))
+ok("外国籍：全ページのメニューで日本語指導の次にある", all(re.search(r'href="nihongo.html"[^>]*><span>日本語<wbr>指導</span></a><a href="foreign.html"[^>]*><span>外国籍の<wbr>子ども</span></a>', h) for h in navs.values()), "")
+ok("外国籍：3分でわかる・地図・ランキングからリンクがある", 'href="foreign.html"' in navs["guide"].split("<main")[-1] and "foreign.html" in (DOCS / "site.js").read_text("utf8") and "foreign.html" in (DOCS / "ranking.js").read_text("utf8"), "")
 
 size = sum(p.stat().st_size for p in DOCS.rglob("*") if p.is_file())
 ok("公開ファイル全体が10MB未満", size < 10_000_000, f"{size // 1024}KB")
