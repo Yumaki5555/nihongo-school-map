@@ -631,6 +631,15 @@
     const pos = reg.length === mapped ? "" : `<p class="sum-pos">登録${fmt(reg.length)}校／地図に位置を表示できる${fmt(mapped)}校<small>（${fmt(reg.length - mapped)}校は位置が確認できないため、学校一覧にだけ載せています）</small></p>`;
     const ind = indicator();
     const v = variantOf(ind, state.variant);
+    // 日本語指導：推移と内訳のページへ（選んでいる都道府県と、外国籍・日本国籍の区分を引き継ぐ）
+    const nihongoLink = (iv) => {
+      const p = new URLSearchParams();
+      if (state.pref) p.set("pref", state.pref);
+      const s = { foreign: "f", japan: "j" }[iv.id];
+      if (s) p.set("s", s);
+      const q = p.toString();
+      return ` <a class="nj-link" href="nihongo.html${q ? "?" + q : ""}#trend">人数の内訳・推移を見る</a>`;
+    };
     const n = state.pref ? v.values[state.pref] : v.national;
     const rank = state.pref ? rankOf(v.values, state.pref) : null;
     const rk = `ranking.html?m=${ind.id}:${v.id}`;
@@ -638,7 +647,7 @@
     const metric = `<div class="sum-block">
         <h3>都道府県別の人数（国の統計）</h3>
         <div class="m-line"><span class="m-label">${esc(area + short(ind, v))}</span><b class="m-value">${valueText(n)}</b></div>
-        <div class="m-sub">基準日 ${esc(ind.period)}・${rank ? `<a href="${rk}">全国${rank}位／47</a>` : `<a href="${rk}">都道府県の順位</a>`}・<a href="${esc(v.url)}" target="_blank" rel="noopener">出典</a>${!state.pref && v.unallocated ? `・${unallocText(v)}` : ""}。${esc(ind.note)}</div>
+        <div class="m-sub">基準日 ${esc(ind.period)}・${rank ? `<a href="${rk}">全国${rank}位／47</a>` : `<a href="${rk}">都道府県の順位</a>`}・<a href="${esc(v.url)}" target="_blank" rel="noopener">出典</a>${!state.pref && v.unallocated ? `・${unallocText(v)}` : ""}。${esc(ind.note)}${ind.id === "nihongo" ? nihongoLink(v) : ""}</div>
       </div>`;
     $("summary").innerHTML = `
       <div class="sum-head"><h2>${esc(regionLabel())}</h2>${state.pref ? '<button type="button" class="link" id="to-nation">全国に戻す</button>' : ""}</div>
@@ -650,7 +659,7 @@
       const iv = variantOf(i, i.id === state.layer ? state.variant : "all");
       const x = state.pref ? iv.values[state.pref] : iv.national;
       return `<div class="ms"><div class="ms-head"><b>${esc(short(i, iv))}</b><span>${valueText(x)}</span></div>
-        <small>基準日 ${esc(i.period)}・<a href="${esc(iv.url)}" target="_blank" rel="noopener">出典</a>${!state.pref && iv.unallocated ? `・全国${fmt(iv.national)}人（${unallocText(iv)}）` : ""}</small><p>${esc(i.scope)}</p></div>`;
+        <small>基準日 ${esc(i.period)}・<a href="${esc(iv.url)}" target="_blank" rel="noopener">出典</a>${!state.pref && iv.unallocated ? `・全国${fmt(iv.national)}人（${unallocText(iv)}）` : ""}${i.id === "nihongo" ? nihongoLink(iv) : ""}</small><p>${esc(i.scope)}</p></div>`;
     }).join("");
     const opened = $("summary-more").querySelector("details[open]") ? " open" : "";
     $("summary-more").innerHTML = `<details class="more-stats"${opened}><summary>${esc(regionLabel())}の数字の説明</summary>

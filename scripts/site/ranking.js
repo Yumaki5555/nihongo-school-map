@@ -150,6 +150,8 @@
       foot = `<tr><th scope="row" colspan="2">全国</th><td class="num">${fmt(v.national)}人${v.unallocated ? `<small>（都道府県不詳${fmt(v.unallocated)}人を含む）</small>` : ""}</td></tr>`;
       period = ind.period;
       info = `基準日：${esc(ind.period)}。${esc(ind.note)}<a href="${esc(v.url)}" target="_blank" rel="noopener">出典：${esc(ind.source_name)}</a>`;
+      // 日本語指導：推移と言語別・学校種別などの内訳のページへ（並べ方の区分を引き継ぐ）
+      if (ind.id === "nihongo") info += `　<a href="nihongo.html?v=pref${{ foreign: "&m=f", japan: "&m=j" }[v.id] || ""}#breakdown">人数の内訳・推移を見る</a>`;
     }
     $("rk-foot").innerHTML = foot;
     $("rk-info").innerHTML = info;

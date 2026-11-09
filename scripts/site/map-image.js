@@ -719,6 +719,171 @@ window.MapImage = (function () {
     });
   }
 
+  // ---- 日本語指導のページ（縦長 1080×1350）：題名・凡例・注意書き・サイト名の枠。グラフを描く範囲を返す ----
+  function portraitFrame(ctx, spec) {
+    const cw = RW - RM * 2;
+    ctx.fillStyle = RC.bg; ctx.fillRect(0, 0, RW, RH);
+    let y = RM - 6;
+    const tt = titleLines(ctx, spec.title, cw);
+    ctx.fillStyle = RC.ink; ctx.font = font(tt.p, true);
+    tt.lines.forEach((l) => { y += Math.round(tt.p * 1.2); ctx.fillText(l, RM, y); });
+    ctx.fillStyle = RC.muted; ctx.font = font(28, true);
+    [].concat(spec.subtitle).forEach((s) => wrapJa(ctx, s, cw).forEach((l) => { y += 40; ctx.fillText(l, RM, y); }));
+    // 凡例（色の四角か線＋名前。色だけに頼らないよう、名前を必ず書く）
+    if (spec.legend && spec.legend.length) {
+      y += 50;
+      let x = RM;
+      ctx.font = font(30, true);
+      spec.legend.forEach((g) => {
+        if (g.line) {
+          ctx.strokeStyle = g.color; ctx.lineWidth = 6; ctx.setLineDash(g.dash ? [14, 9] : []);
+          ctx.beginPath(); ctx.moveTo(x, y - 11); ctx.lineTo(x + 52, y - 11); ctx.stroke(); ctx.setLineDash([]);
+          drawMarker(ctx, g.marker, x + 26, y - 11, 9, g.color);
+          x += 64;
+        } else {
+          ctx.fillStyle = g.color; ctx.fillRect(x, y - 30, 30, 30); x += 40;
+        }
+        ctx.fillStyle = RC.ink; ctx.fillText(g.label, x, y); x += ctx.measureText(g.label).width + 34;
+      });
+      if (spec.unit) { ctx.fillStyle = RC.muted; ctx.font = font(26); ctx.textAlign = "right"; ctx.fillText(spec.unit, RW - RM, y); ctx.textAlign = "left"; }
+    }
+    y += 22;
+    ctx.fillStyle = RC.line; ctx.fillRect(RM, y, cw, 2);
+    const top = y + 14;
+    const urlY = RH - 30;
+    ctx.font = font(23);
+    const notes = [];
+    spec.foot.forEach((t) => wrapJa(ctx, t, cw).forEach((l) => notes.push(l)));
+    const lh = 32;
+    const fy = urlY - 46 - (notes.length - 1) * lh;
+    ctx.fillStyle = RC.muted;
+    notes.forEach((l, i) => ctx.fillText(l, RM, fy + i * lh));
+    ctx.fillStyle = RC.url; ctx.font = font(20, true);
+    ctx.fillText(`${spec.siteName}（テスト運用中）`, RM, urlY);
+    ctx.textAlign = "right";
+    ctx.fillText(spec.siteUrl.replace(/^https?:\/\//, "").replace(/\/$/, ""), RW - RM, urlY);
+    ctx.textAlign = "left";
+    const sepY = fy - 23 - 18;
+    ctx.fillStyle = RC.line; ctx.fillRect(RM, sepY, cw, 2);
+    return { top, bottom: sepY - 10, cw };
+  }
+
+  function drawMarker(ctx, kind, x, y, r, color) {
+    ctx.fillStyle = color; ctx.strokeStyle = RC.bg; ctx.lineWidth = 3;
+    ctx.beginPath();
+    if (kind === "square") ctx.rect(x - r, y - r, r * 2, r * 2); else ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.fill(); ctx.stroke();
+  }
+
+  function toPng(canvas) {
+    return new Promise((resolve, reject) => { canvas.toBlob((b) => (b ? resolve(b) : reject(new Error("toBlob"))), "image/png"); });
+  }
+
+  // 積み上げ横棒：名前は左、合計は右。棒は0から、全行で同じ物差し（小さい区分を長く見せない）。外国籍と日本国籍の間に2pxのすき間
+  function renderBars(spec) {
+    const canvas = document.createElement("canvas");
+    canvas.width = RW; canvas.height = RH;
+    const ctx = canvas.getContext("2d");
+    const { top, bottom } = portraitFrame(ctx, spec);
+    const rows = spec.rows;
+    const pitch = Math.min(150, (bottom - top) / Math.max(5, rows.length));
+    const withSub = pitch >= 78 && rows.some((r) => r.sub);
+    const fp = Math.round(Math.min(44, pitch * (withSub ? 0.36 : 0.44)));
+    const bh = Math.round(Math.min(46, pitch * (withSub ? 0.3 : 0.42)));
+    const sp = Math.round(Math.min(26, pitch * 0.27));
+    ctx.font = font(fp, true);
+    const nw = Math.min((RW - RM * 2) * 0.4, Math.max(...rows.map((r) => ctx.measureText(r.name).width)));
+    const vp = Math.round(fp * 1.04);
+    ctx.font = font(vp, true);
+    const vw = Math.max(...rows.map((r) => ctx.measureText(r.value).width));
+    const x0 = RM + nw + 22, x1 = RW - RM - vw - 20;
+    const max = Math.max(1e-9, spec.max || 0, ...rows.map((r) => r.segs.reduce((s, g) => s + (g.n || 0), 0)));
+    rows.forEach((r, i) => {
+      const y0 = top + pitch * i;
+      const cy = y0 + (withSub ? pitch * 0.38 : pitch * 0.5);
+      if (i) { ctx.fillStyle = RC.rule; ctx.fillRect(RM, y0, RW - RM * 2, 1); }
+      const sc = Math.min(1, nw / Math.max(1, (ctx.font = font(fp, true), ctx.measureText(r.name).width)));
+      ctx.font = font(Math.floor(fp * sc), true); ctx.fillStyle = RC.ink;
+      ctx.fillText(r.name, RM, cy + fp * 0.36);
+      let x = x0;
+      r.segs.forEach((g) => {
+        if (!g.n) return;
+        if (x > x0) x += 2;
+        const w = ((x1 - x0) * g.n) / max;
+        ctx.fillStyle = g.color; ctx.fillRect(x, cy - bh / 2, w, bh);
+        x += w;
+      });
+      ctx.font = font(vp, true); ctx.fillStyle = RC.ink; ctx.textAlign = "right";
+      ctx.fillText(r.value, RW - RM, cy + fp * 0.36);
+      ctx.textAlign = "left";
+      if (withSub && r.sub) { ctx.font = font(sp); ctx.fillStyle = RC.muted; ctx.fillText(r.sub, x0, cy + bh / 2 + sp + 6); }
+    });
+    ctx.fillStyle = RC.line; ctx.fillRect(x0 - 2, top, 2, pitch * rows.length);
+    return toPng(canvas);
+  }
+
+  // 推移の折れ線：横軸は調査年（年の間隔どおり）、縦軸は0から。点は調査をした年だけ。データのない年は線でつながない
+  function renderTrend(spec) {
+    const canvas = document.createElement("canvas");
+    canvas.width = RW; canvas.height = RH;
+    const ctx = canvas.getContext("2d");
+    const { top, bottom, cw } = portraitFrame(ctx, spec);
+    // 下の段：比較の結果（大きめの字）
+    ctx.font = font(32, true);
+    const sum = [];
+    (spec.summary || []).forEach((t) => wrapJa(ctx, t, cw).forEach((l) => sum.push(l)));
+    const sumH = sum.length ? sum.length * 46 + 24 : 0;
+    ctx.fillStyle = RC.ink;
+    sum.forEach((l, i) => ctx.fillText(l, RM, bottom - sumH + 40 + i * 46));
+    const pl = RM + 118, pr = RW - RM - 26, pt = top + 34, pb = bottom - sumH - 70;
+    const X = (yr) => pl + ((yr - spec.x0) / (spec.x1 - spec.x0)) * (pr - pl);
+    const Y = (v) => pb - (v / spec.yMax) * (pb - pt);
+    ctx.font = font(26); ctx.fillStyle = RC.muted; ctx.textAlign = "right";
+    spec.yTicks.forEach((t) => { ctx.fillStyle = RC.rule; ctx.fillRect(pl, Math.round(Y(t)), pr - pl, t ? 1 : 2); ctx.fillStyle = RC.muted; ctx.fillText(fmt(t), pl - 12, Y(t) + 9); });
+    ctx.textAlign = "center";
+    spec.xTicks.forEach((t) => { ctx.fillStyle = RC.muted; ctx.fillText(`${t}年`, X(t), pb + 40); ctx.fillStyle = RC.line; ctx.fillRect(Math.round(X(t)), pb, 1, 10); });
+    ctx.textAlign = "left";
+    if (spec.breakAt) {
+      ctx.strokeStyle = RC.muted; ctx.lineWidth = 2; ctx.setLineDash([8, 8]);
+      ctx.beginPath(); ctx.moveTo(X(spec.breakAt), pt); ctx.lineTo(X(spec.breakAt), pb); ctx.stroke(); ctx.setLineDash([]);
+      ctx.font = font(22); ctx.fillStyle = RC.muted;
+      ctx.fillText(spec.breakLabel[0], X(spec.breakAt) - 8 - ctx.measureText(spec.breakLabel[0]).width, pt + 18);
+      ctx.fillText(spec.breakLabel[1], X(spec.breakAt) + 8, pt + 18);
+    }
+    if (spec.noData) {
+      ctx.fillStyle = "rgba(98,90,80,0.08)"; ctx.fillRect(X(spec.noData[0]), pt, X(spec.noData[1]) - X(spec.noData[0]), pb - pt);
+      ctx.font = font(24); ctx.fillStyle = RC.muted; ctx.textAlign = "center";
+      wrapJa(ctx, spec.noDataLabel, Math.max(120, X(spec.noData[1]) - X(spec.noData[0]) - 16)).forEach((l, i) => ctx.fillText(l, (X(spec.noData[0]) + X(spec.noData[1])) / 2, pb - 80 + i * 30));
+      ctx.textAlign = "left";
+    }
+    spec.series.forEach((s) => {
+      ctx.strokeStyle = s.color; ctx.lineWidth = 5; ctx.setLineDash(s.dash ? [16, 10] : []);
+      ctx.beginPath();
+      let on = false;
+      s.points.forEach((p) => { if (p.v == null) { on = false; return; } if (on) ctx.lineTo(X(p.x), Y(p.v)); else ctx.moveTo(X(p.x), Y(p.v)); on = true; });
+      ctx.stroke(); ctx.setLineDash([]);
+      s.points.forEach((p) => { if (p.v != null) drawMarker(ctx, s.marker, X(p.x), Y(p.v), p.big ? 12 : 8, s.color); });
+    });
+    // 値の文字（選んだ2年だけ。重ならないよう上下に逃がす）
+    const taken = [];
+    ctx.font = font(28, true);
+    spec.series.forEach((s, si) => s.points.forEach((p) => {
+      if (!p.big || p.v == null) return;
+      const t = fmt(p.v) + "人";
+      const w = ctx.measureText(t).width;
+      let x = Math.min(pr - w, Math.max(pl, X(p.x) - w / 2));
+      // ほかの地域より少ない点は下に、多い点は上に書く（点や線を文字で隠さないため）
+      const below = spec.series.some((o, oi) => oi !== si && o.points.some((q) => q.x === p.x && q.v != null && q.v > p.v));
+      let y = below ? Y(p.v) + 48 : Y(p.v) - 22;
+      for (let k = 0; k < 6 && taken.some((b) => Math.abs(b.y - y) < 34 && b.x < x + w && x < b.x + b.w); k++) y += below ? 38 : -38;
+      y = Math.max(pt + 28, Math.min(pb - 8, y));
+      taken.push({ x, y, w });
+      ctx.fillStyle = RC.bg; ctx.fillRect(x - 4, y - 28, w + 8, 34);
+      ctx.fillStyle = RC.ink; ctx.fillText(t, x, y);
+    }));
+    return toPng(canvas);
+  }
+
   function drawHead(ctx, spec) {
     ctx.fillStyle = C.bg; ctx.fillRect(0, 0, W, H);
     ctx.fillStyle = C.accent; ctx.fillRect(0, 0, W, 8);
@@ -755,6 +920,8 @@ window.MapImage = (function () {
   function render(spec) {
     if (spec.kind === "ranking") return renderRanking(spec);
     if (spec.kind === "compare") return renderCompare(spec);
+    if (spec.kind === "bars") return renderBars(spec);
+    if (spec.kind === "trend") return renderTrend(spec);
     const canvas = document.createElement("canvas");
     canvas.width = W; canvas.height = H;
     const ctx = canvas.getContext("2d");
