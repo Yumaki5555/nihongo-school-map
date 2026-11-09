@@ -326,6 +326,18 @@ ok("就学状況：すべての年に出典がある（2021年からは e-Stat �
 ok("就学状況：2021年の仙台市の空欄（②〜⑤）を null のまま残している", SV["04100"]["2021"][1:5] == [None] * 4 and [b[0] for b in sg["y"]["2021"]["blanks"]] == ["04100"] * 4, "")
 ok("就学状況：外国籍の子どものページと互いに切り替えられ、メニューは「外国籍の子ども」を現在地にする", 'href="shugaku.html"' in (DOCS / "foreign.html").read_text("utf8") and 'href="foreign.html" aria-current="page"' in (DOCS / "shugaku.html").read_text("utf8"), "")
 
+# ---- 就学状況のページの「この地域の学校の数」（data/gakkosu.json は fetch_gakkosu.py で学校基本調査の表の県・全国の行と照合済み）----
+gk = load(DOCS / "data/gakkosu.json")
+GV = gk["v"]
+_gy = [str(y) for y in gk["years"]]
+_out = lambda p_, y, i: (gk["outside"].get(p_, {}).get(y) or [0, 0, 0])[i]
+ok("学校の数：就学状況と同じ市区町村1,741・都道府県47・全国に、2021〜2025年の小・中・義務教育学校の数がある", set(GV) == set(SV) and gk["years"] == [2021, 2022, 2023, 2024, 2025] and all(set(GV[c]) == set(_gy) and all(len(r) == 3 and all(isinstance(x, int) and x >= 0 for x in r) for r in GV[c].values()) for c in GV), "")
+ok("学校の数：都道府県＝市区町村の和（＋表の「大阪市外」）、全国＝都道府県の和", all(GV[p_][y][i] == sum(GV[m][y][i] for m in _m if m[:2] == p_) + _out(p_, y, i) for p_ in _p for y in _gy for i in range(3)) and all(GV["00"][y][i] == sum(GV[p_][y][i] for p_ in _p) for y in _gy for i in range(3)), "")
+ok("学校の数：全国が学校基本調査と一致（2025年 小18,607・中9,827・義務261、2024年 小18,822・中9,882・義務238）", GV["00"]["2025"] == [18607, 9827, 261] and GV["00"]["2024"] == [18822, 9882, 238], str(GV["00"]["2025"]))
+ok("学校の数：政令指定都市20市は区の合計", len(gk["wards"]) == 20 and all(len(c) == 5 for c in gk["wards"]), str(len(gk["wards"])))
+ok("学校の数：すべての年・種類に出典の表（e-Stat）がある", all(set(gk["y"][y]["src"]) == set(gk["kinds"]) and all(s_["url"].startswith("https://www.e-stat.go.jp/") for s_ in gk["y"][y]["src"].values()) for y in _gy), "")
+ok("学校の数：就学状況のページに欄と出典の文がある", 'id="sg-sch"' in (DOCS / "shugaku.html").read_text("utf8") and 'id="sg-sch-src"' in (DOCS / "shugaku.html").read_text("utf8") and "data/gakkosu.json" in (DOCS / "shugaku.js").read_text("utf8"), "")
+
 size = sum(p.stat().st_size for p in DOCS.rglob("*") if p.is_file())
 ok("公開ファイル全体が10MB未満", size < 10_000_000, f"{size // 1024}KB")
 

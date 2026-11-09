@@ -240,6 +240,8 @@ def main():
     write_json("data/foreign_jido.json", json.loads((ROOT / "data" / "foreign_jido.json").read_text("utf8")))
     # 外国人の子供の就学状況（scripts/fetch_shugaku.py が e-Stat の市区町村別データから作り、全国は国の表と照合済み）
     write_json("data/shugaku.json", json.loads((ROOT / "data" / "shugaku.json").read_text("utf8")))
+    # 小・中学校などの数（scripts/fetch_gakkosu.py が学校基本調査の市町村別学校数から作り、県・全国の行と照合済み）
+    write_json("data/gakkosu.json", json.loads((ROOT / "data" / "gakkosu.json").read_text("utf8")))
     build_pages(stats)
     print("作成", DOCS, "ファイル数", sum(1 for f in DOCS.rglob("*") if f.is_file()), "schools.json KB", (DOCS / "data/schools.json").stat().st_size // 1024)
 

@@ -31,9 +31,11 @@
   let N, YEARS = [], LATEST, FIRST_MUNI, PREF_CODES = [], MUNI_BY_PREF = {}, INDEX = [];
   let urlTimer = 0, imageUrl = "", imageJob = 0, imageWhich = "trend", imagePage = 0;
 
+  let G = null, ready = false; // G：小・中学校などの数（data/gakkosu.json）。読めなくてもページは出す
   fetch("data/shugaku.json").then((r) => { if (!r.ok) throw new Error(r.status); return r.json(); })
-    .then((d) => { N = d; init(); })
+    .then((d) => { N = d; init(); ready = true; renderSchools(); })
     .catch(() => { $("nj-loading").hidden = true; $("nj-error").hidden = false; });
+  fetch("data/gakkosu.json").then((r) => (r.ok ? r.json() : null)).then((d) => { G = d; if (ready) renderSchools(); }).catch(() => {});
 
   // ---- 共通 ----
   const md = (iso) => { const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso || ""); return m ? `${Number(m[2])}月${Number(m[3])}日` : ""; };
@@ -362,6 +364,7 @@
     const d7 = val(y, c, "c7");
     $("nj-kpi-note").textContent = d7 == null ? "" : `⑦住民票上の人数と①〜⑥の計の差：${fmt(d7)}人${d7 < 0 ? "（①〜⑥の計のほうが多い）" : ""}。⑦は差し引きの数で、割合の計算には入れていません。`;
     $("sg-kpi-known").innerHTML = knownHtml(summaryKnown(y, c));
+    renderSchools();
     // X：人数だけ（割合は入れない）
     setX("kpi", `外国籍の子どもの就学状況｜${areaName(c)}・${y}年\n住民票上の人数（小・中学校の年齢）${juki == null ? "—" : fmt(juki) + "人"}\n${countLines(y, c).join("\n")}\n${SITE_NAME}`, pageUrl("area"));
   }
@@ -754,6 +757,35 @@
     return `<table class="plain nj-src"><thead><tr><th scope="col">調査年</th><th scope="col">基準日</th><th scope="col">使った表</th></tr></thead><tbody>${rows}</tbody></table>
       <p class="fine">出典：${esc(SURVEY)}（各年度、<a href="${esc(N.estat_url)}" target="_blank" rel="noopener">e-Stat</a>）。${esc(N.terms)}（${esc(N.checked)}）。数字は国の表のとおりです。計算しているのは、2021年度からの都道府県・全国（市区町村の和）と、⑦（住民票上の人数 − ①〜⑥の計）だけです。2019年度の全国は、国の結果資料の表の数です。区分の説明は<a href="${esc(N.mext.url)}" target="_blank" rel="noopener">${esc(N.mext.title)}</a>（${esc(jpDate(N.mext.date))}）によります。基準日の「—」は、国の資料で確かめられなかった年です。</p>
       ${knownHtml(N.known || [])}`;
+  }
+
+  // ---- 学校の数（学校基本調査の市町村別学校数。参考として出す。就学状況の人数とは別の調査） ----
+  function renderSchools() {
+    const box = $("sg-sch"), c = state.area, row = G && ready ? G.v[c] : null;
+    if (!row) { box.hidden = true; return; }
+    const ys = G.years.slice().sort((a, b) => a - b), y = ys[ys.length - 1], y0 = ys[0], now = row[String(y)], old = row[String(y0)];
+    const LABEL = ["小学校", "中学校", "義務教育学校<small>（小・中一貫）</small>"];
+    const items = G.kinds.map((k, i) => {
+      const d = now[i] - old[i];
+      return `<li><span>${LABEL[i]}</span><b>${fmt(now[i])}<small>校</small></b><small>${y0}年の${fmt(old[i])}校から${d ? `${fmt(Math.abs(d))}校${d > 0 ? "増" : "減"}` : "変わらず"}</small></li>`;
+    }).join("");
+    const notes = [];
+    if ((G.wards || []).includes(c)) notes.push("政令指定都市なので、区ごとの数を足しています。");
+    Object.keys(G.outside || {}).forEach((p) => {
+      const o = G.outside[p], v = o[String(y)] || [0, 0, 0], t = G.kinds.map((k, i) => (v[i] ? `${k}${fmt(v[i])}校` : "")).filter(Boolean).join("・");
+      if (!t) return;
+      const city = o.name.replace(/外$/, ""), inCity = isMuni(c) && c.slice(0, 2) === p && N.munis[c][1] === city;
+      if (c === "00" || c === p) notes.push(`${c === "00" ? "全国と" : ""}${N.prefs[p]}の数には、e-Statの表で「${o.name}」とされている市立の学校（${t}）を含みます。どの市町村にあるかが表にないため、市町村の数には入れていません。`);
+      else if (inCity) notes.push(`e-Statの表で「${o.name}」とされている市立の学校（${t}）は、どの市町村にあるかが表にないため、${city}の数に入れていません（${N.prefs[p]}の数には含みます）。`);
+    });
+    box.innerHTML = `<h3 class="sg-sch-h">${esc(areaName(c))}にある学校の数<small>（参考・${y}年）</small></h3><ul class="nj-kpis sg-sch-list">${items}</ul>
+      <p class="fine">${esc(jpDate(G.y[y].as_of))}現在（${esc(G.y[y].fy)}）。文部科学省「学校基本調査」の市町村別の学校数で、国立・公立・私立の計（分校を含む）です。学校がある市区町村で数えています。${esc(notes.join(""))}上の外国籍の子どもの人数とは別の調査の数で、子どもが通っている学校の数ではありません。</p>`;
+    box.hidden = false;
+    const src = $("sg-sch-src");
+    if (src && !src.textContent) {
+      const s = G.y[y].src;
+      src.innerHTML = `学校の数：文部科学省「学校基本調査」（${ys[0]}〜${y}年度の各年5月1日現在。<a href="${esc(G.estat_url)}" target="_blank" rel="noopener">e-Stat</a> の市町村別学校数）。${y}年度の表：${G.kinds.map((k) => `<a href="${esc(s[k].url)}" target="_blank" rel="noopener">${esc(k)}</a>`).join("・")}。数は表の「計」で、政令指定都市は区の数を足しています（計算はこの足し算だけです）。都道府県・全国は表の数です（表の市区町村の行の合計と一致することを確かめています）。${esc(G.terms)}（${esc(G.checked)}）。`;
+    }
   }
 
   // ---- 画像 ----

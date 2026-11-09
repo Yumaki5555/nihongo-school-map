@@ -545,6 +545,13 @@ details.sg-known table { font-size: .84rem; }
 .sg-cur .btn-x { margin-left: 6px; }
 .sg-comp { margin: -8px 0 8px; }
 .sg-comp-h { margin: 0 0 4px; font-size: .86rem; color: var(--muted); }
+/* 就学状況のページ：この地域の学校の数（学校基本調査・参考） */
+.sg-sch { margin: 14px 0 0; padding: 10px 12px 2px; border: 1px solid var(--line-soft); border-radius: 8px; background: var(--soft); }
+.sg-sch-h { margin: 0 0 8px; font-size: .98rem; color: var(--ink); }
+.sg-sch-h small { margin-left: 4px; font-size: .82rem; font-weight: 400; color: var(--muted); }
+.sg-sch-list { margin: 0 0 6px; }
+.sg-sch-list li > span { display: block; }
+.sg-sch-list li > span small { display: block; font-size: .74rem; font-weight: 400; color: var(--muted); }
 .sg-ctrack { height: 22px; border-left: 0; }
 .sg-ctrack .nj-seg:first-child { border-radius: 4px 0 0 4px; }
 .sg-pct { margin-left: 6px; font-weight: 400; color: var(--muted); font-size: .8rem; }
