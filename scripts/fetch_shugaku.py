@@ -69,6 +69,11 @@ KNOWN = {
     (2024, "06"): "令和6年度の山形県の行は①137・計142だが、市町村の和は①139・計144（住民基本台帳144と一致）。市町村の和を使用",
     (2024, "08"): "令和6年度の茨城県の行は⑤316・計4,470だが、市町村の和は⑤207・計4,361（つくば市の計760と住民基本台帳869の差109が⑤に入った形）。全国の表（⑤7,213）は市町村の和と一致するので、和を使用",
 }
+# 画面に「原表の県の行／市区町村の合計」を出すための値（k：c1〜c6 は①〜⑥、tot は①〜⑥の計）
+KNOWN_DIFF = {
+    (2024, "06"): [{"k": "c1", "raw": 137, "used": 139}, {"k": "tot", "raw": 142, "used": 144}],
+    (2024, "08"): [{"k": "c5", "raw": 316, "used": 207}, {"k": "tot", "raw": 4470, "used": 4361}],
+}
 
 
 def fail(msg):
@@ -205,7 +210,7 @@ def main():
         "id": "shugaku", "title": "外国人の子供の就学状況", "survey": "文部科学省「外国人の子供の就学状況等調査」",
         "scope": "住民基本台帳に記載された学齢相当（小学校・中学校の年齢）の外国人の子ども。市町村教育委員会（特別区を含む）1,741が回答",
         "estat_url": ESTAT, "mext": MEXT_R7, "checked": CHECKED, "terms": TERMS,
-        "known": [{"year": y, "pref": p, "note": t} for (y, p), t in KNOWN.items()],
+        "known": [{"year": y, "pref": p, "note": t, "diff": KNOWN_DIFF[(y, p)]} for (y, p), t in KNOWN.items()],
         "prefs": {CODE[p]: p for p in PREFS},
         "munis": {k: list(names[k]) for k in sorted(names)},
         "years": sorted([2019] + list(years)),

@@ -74,6 +74,32 @@
     if (!CATS[k] || CATS[k].i == null || CATS[k].i > 5) return [];
     return (Y(y).blanks || []).filter((b) => b[1] === CATS[k].i && b[0] !== c && (c === "00" || b[0].slice(0, 2) === c)).map((b) => areaName(b[0]));
   }
+  // その年・地域の ks の区分に、空欄（回答なし）の市区町村の分が入っていないときの注記
+  function blankNote(y, c, ks) {
+    const hit = ks.filter((k) => blankIn(y, c, k).length);
+    const names = [...new Set(hit.flatMap((k) => blankIn(y, c, k)))];
+    return names.length ? `${y}年の${areaName(c)}の${hit.map((k) => CATS[k].short.charAt(0)).join("・")}には、${names.join("・")}の空欄（回答なし）の分が入っていません。` : "";
+  }
+  const NOTE5 = "⑤は就学状況を確認できなかった子どもの数で、不就学と確定した人数ではありません。";
+  const NOTEPOS = "不就学の可能性は③不就学・⑤確認できず・⑦住民票との差を合わせた国の指標で、不就学と確定した人数ではありません。";
+  const NOTE2019 = "2019年度は⑦（住民票上の人数との差）が大きく、2021年度からとは把握状況がちがうため、比べるときは注意が必要です。";
+  // e-Stat原表の県の行と市区町村の合計の差（data の known。2024年度の山形県・茨城県）。ys の年・cs の地域・ks の区分にかかわるものだけ（ks が null ならすべて）
+  function knownFor(ys, cs, ks) {
+    const want = ks && ks.map((k) => (k === "c7" ? "tot" : k));
+    return (N.known || []).filter((x) => ys.includes(x.year) && cs.includes(x.pref) && (!want || x.diff.some((d) => want.includes(d.k))));
+  }
+  const knownYears = (list) => [...new Set(list.map((x) => x.year))].join("・");
+  const knownMsg = (list) => `${knownYears(list)}年度は、e-Stat原表の県集計と市区町村の合計に差があります。このサイトでは、市区町村の合計を掲載しています。`;
+  // 画面：注記。開くと、原表の県の行と掲載している数を表で見られる（差が生じた理由は書かない＝確かめられていない）
+  function knownHtml(list) {
+    if (!list.length) return "";
+    const rows = list.flatMap((x) => x.diff.map((d) => `<tr><th scope="row">${x.year}年度・${esc(N.prefs[x.pref])}</th><td>${esc(d.k === "tot" ? "①〜⑥の計" : CATS[d.k].label)}</td><td class="num">${fmt(d.raw)}人</td><td class="num">${fmt(d.used)}人</td></tr>`)).join("");
+    return `<details class="sg-known"><summary>${esc(knownMsg(list))}</summary><div class="tablewrap"><table class="plain"><thead><tr><th scope="col">年度・県</th><th scope="col">区分</th><th scope="col" class="num">原表の県の行</th><th scope="col" class="num">市区町村の合計（掲載）</th></tr></thead><tbody>${rows}</tbody></table></div><p class="fine">差が生じた理由は確認できていません。全国の数（市区町村の合計を足したもの）は、国の結果資料の表と一致します。</p></details>`;
+  }
+  // 画像：短い注記
+  const knownShort = (list) => (list.length ? `${knownYears(list)}年度の${[...new Set(list.map((x) => N.prefs[x.pref]))].join("・")}は、e-Stat原表の県集計と市区町村の合計に差があります（市区町村の合計を掲載）。` : "");
+  // X の投稿文などに使う人数の行（割合は入れない）。③と⑤を並べるので、⑤は「確認できず」と分かる名前にする
+  const countLines = (y, c) => ["c1", "c2", "c3", "c5"].filter((k) => val(y, c, k) != null).map((k) => `${k === "c5" ? "⑤就学状況を確認できず" : CATS[k].short} ${fmt(val(y, c, k))}人`);
   const regions = () => (state.area2 ? [state.area, state.area2] : [state.area]);
   const availYears = (k) => YEARS.filter((y) => regions().every((c) => val(y, c, k) != null));
 
@@ -140,6 +166,8 @@
     });
     $("nj-trend-acts").innerHTML = actButtons("trend");
     $("nj-bd-acts").innerHTML = actButtons("bd");
+    $("nj-kpi-acts").innerHTML = actButtons("kpi");
+    $("nj-img-kpi").addEventListener("click", () => openImage("kpi"));
     $("nj-img-trend").addEventListener("click", () => openImage("trend"));
     $("nj-img-bd").addEventListener("click", () => openImage("bd"));
     $("img-close").addEventListener("click", () => $("img-dialog").close());
@@ -280,22 +308,38 @@
 
   function pressed(id, key, v) { $(id).querySelectorAll("button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset[key] === v))); }
 
-  // まとめの文（地域・年の就学状況をひとことで）。数字は表のまま、理由や良し悪しは書かない
+  // まとめ（3点）：対象の人数／前回の調査からの主な変化／読むときの注意。数字はデータから作り、理由や地域の良し悪しは書かない
+  const prevSurvey = (y, c) => YEARS.filter((x) => x < y && val(x, c, "juki") != null).pop() || null;
+  // まとめで使う数にかかわる、県集計の差（その年はすべての区分、前回の年は③⑤だけ）
+  const summaryKnown = (y, c) => { const p = prevSurvey(y, c); return knownFor([y], [c], null).concat(p ? knownFor([p], [c], ["c3", "c5"]) : []); };
   function summary(y, c) {
-    const juki = val(y, c, "juki"), tot = val(y, c, "tot");
-    const nm = areaName(c);
-    if (juki == null) return "";
-    if (juki === 0 && tot === 0) return `${nm}では、${y}年の住民票上の学齢相当の外国籍の子どもは0人でした。`;
-    const v = (k) => val(y, c, k);
-    const part = (k, word) => (v(k) == null ? `${word}は空欄（回答なし）` : `${word}が${fmt(v(k))}人（${pctText(v(k), tot)}）`);
-    let s = `${nm}では、住民票上の学齢相当（小・中学校の年齢）の外国籍の子どもが${fmt(juki)}人いて、教育委員会が答えた①〜⑥の計${fmt(tot)}人のうち、`
-      + `${part("c1", "日本の小・中学校などに在籍している子ども")}、${part("c2", "外国人学校に在籍している子ども")}です。`
-      + `${part("c3", "不就学")}、${part("c5", "就学状況を確認できなかった子ども")}でした。`;
-    const d = v("c7");
-    if (d) s += `住民票上の人数と①〜⑥の計には${fmt(Math.abs(d))}人の差があります（⑦${d > 0 ? "" : "：計のほうが多い"}）。`;
-    if (c === "00") s += `国は、③・⑤・⑦を合わせた${fmt(v("pos"))}人を「不就学の可能性がある」子どもとしています。`;
-    if (tot > 0 && tot < 30) s += "人数が少ないため、割合は1人のちがいで大きく変わります。";
-    return s;
+    const juki = val(y, c, "juki"), tot = val(y, c, "tot"), nm = areaName(c);
+    if (juki == null) return [];
+    const out = [`${nm}の住民票上の学齢相当（小・中学校の年齢）の外国籍の子どもは、${y}年に${fmt(juki)}人です${juki && tot !== juki ? `（教育委員会が答えた①〜⑥の計は${fmt(tot)}人）` : ""}。`];
+    const p = prevSurvey(y, c);
+    const end = (d) => (d > 0 ? `${fmt(d)}人増えました。` : d < 0 ? `${fmt(-d)}人減りました。` : "変わりませんでした。");
+    const mid = (d) => (d > 0 ? `${fmt(d)}人増えた` : d < 0 ? `${fmt(-d)}人減った` : "変わらなかった");
+    if (p) {
+      const dv = (k) => { const a = val(p, c, k), b = val(y, c, k); return a == null || b == null ? null : b - a; };
+      let s = `前回の調査（${p}年）と比べると、住民票上の人数は${end(dv("juki"))}`;
+      const d3 = dv("c3"), d5 = dv("c5");
+      const w3 = "③不就学と報告された人数", w5 = "⑤就学状況を確認できなかった人数";
+      if (d3 === 0 && d5 === 0) s += `${w3}と${w5}は、どちらも変わりませんでした。`;
+      else if (d3 != null && d5 != null) s += Math.sign(d3) * Math.sign(d5) < 0 ? `${w3}は${mid(d3)}一方、${w5}は${end(d5)}` : `${w3}は${end(d3)}${w5}は${end(d5)}`;
+      else if (d3 != null || d5 != null) s += `${d3 != null ? `${w3}は${end(d3)}` : `${w5}は${end(d5)}`}${d3 == null ? "③" : "⑤"}は比較できません（空欄の年があるため）。`;
+      else s += "③・⑤は比較できません（空欄の年があるため）。";
+      if (c === "00" && dv("pos") != null) s += `国の「不就学の可能性」（③＋⑤＋⑦）は${fmt(val(y, c, "pos"))}人で、${end(dv("pos"))}`;
+      out.push(s);
+    } else out.push("前回の調査の数がないため、変化は比較できません。");
+    const notes = [];
+    if (juki > 0) notes.push("⑤は不就学と確定した人数ではありません。増減の理由や地域の取り組みの良し悪しは、この統計だけでは判断できません。");
+    if (tot > 0 && tot < 30) notes.push("人数が少ないため、割合や増減は数人のちがいで大きく変わります。");
+    if (p === 2019) notes.push("2019年は⑦が大きく、把握状況がちがうため、比べるときは注意が必要です。");
+    [p, y].filter(Boolean).forEach((yr) => { const t = blankNote(yr, c, ["c3", "c5"]); if (t) notes.push(t); });
+    const kn = summaryKnown(y, c);
+    if (kn.length) notes.push(`${knownYears(kn)}年度の${nm}は、e-Stat原表の県集計ではなく市区町村の合計を使っています（下の注記）。`);
+    if (notes.length) out.push(notes.join(""));
+    return out;
   }
 
   function renderKpi() {
@@ -305,14 +349,54 @@
     $("nj-reset").hidden = c === "00";
     $("nj-kpi-when").innerHTML = `<span class="nj-badge">${y}年・最新</span> ${esc(Y(y).fy)}${Y(y).as_of ? "・" + asOf(y) : ""}・住民票をもとにした数`;
     const tile = (k, v, sub, cls) => `<li${cls ? ` class="${cls}"` : ""}><span>${k ? `<i class="nj-sw" style="background:${CATS[k].color}"></i>` : ""}${esc(k ? CATS[k].short : "住民票上の人数")}</span><b>${v == null ? "—" : fmt(v)}<small>人</small></b>${sub ? `<small>${sub}</small>` : ""}</li>`;
-    $("nj-kpis").innerHTML = tile(null, juki, "小・中学校の年齢", "nj-kpi-all") + PARTS.map((k) => { const v = val(y, c, k); return tile(k, v, v == null ? noneWhy(y, c, k) : `計の${pctText(v, tot)}`); }).join("");
+    $("nj-kpis").innerHTML = tile(null, juki, "小・中学校の年齢", "nj-kpi-all") + PARTS.map((k) => { const v = val(y, c, k); return tile(k, v, v == null ? noneWhy(y, c, k) : tot > 0 ? `計の${pctText(v, tot)}` : "割合 —"); }).join("");
+    $("sg-basis").textContent = tot > 0 ? `「計の○％」は、①〜⑥の計（教育委員会が答えた人数 ${fmt(tot)}人）に対する割合です。住民票上の人数に対する割合ではありません。` : "①〜⑥の計が0人のため、割合は出していません。";
     const segs = PARTS.map((k) => { const v = val(y, c, k) || 0; return v ? `<span class="nj-seg" style="width:${((v / tot) * 100).toFixed(3)}%;background:${CATS[k].color}"></span>` : ""; }).join("");
     const label = PARTS.map((k) => `${CATS[k].short} ${pctText(val(y, c, k), tot)}`).join("、");
     $("sg-comp").innerHTML = tot
       ? `<p class="sg-comp-h">①〜⑥の割合（計 ${fmt(tot)}人を100％として）</p><div class="nj-track sg-ctrack" role="img" aria-label="${esc(label)}">${segs}</div><div class="nj-legend">${PARTS.map((k) => `<span class="nj-lg"><i class="nj-sw" style="background:${CATS[k].color}"></i>${esc(CATS[k].short)} ${pctText(val(y, c, k), tot)}</span>`).join("")}</div>`
       : "";
-    $("sg-say").textContent = summary(y, c);
-    $("nj-kpi-note").textContent = `割合は①〜⑥の計（教育委員会が答えた人数）に対するものです（国の構成比と同じ）。⑦住民票上の人数との差：${fmt(val(y, c, "c7"))}人。`;
+    const pts = summary(y, c);
+    $("sg-say").innerHTML = pts.length ? `<ul class="sg-points">${pts.map((s) => `<li>${esc(s)}</li>`).join("")}</ul>` : "";
+    $("sg-say").hidden = !pts.length;
+    const d7 = val(y, c, "c7");
+    $("nj-kpi-note").textContent = d7 == null ? "" : `⑦住民票上の人数と①〜⑥の計の差：${fmt(d7)}人${d7 < 0 ? "（①〜⑥の計のほうが多い）" : ""}。⑦は差し引きの数で、割合の計算には入れていません。`;
+    $("sg-kpi-known").innerHTML = knownHtml(summaryKnown(y, c));
+    // X：人数だけ（割合は入れない）
+    setX("kpi", `外国籍の子どもの就学状況｜${areaName(c)}・${y}年\n住民票上の人数（小・中学校の年齢）${juki == null ? "—" : fmt(juki) + "人"}\n${countLines(y, c).join("\n")}\n${SITE_NAME}`, pageUrl("area"));
+  }
+
+  // 地域のデータ（最新の年）の画像。注意書きは、この画像に出る数に関係するものだけ
+  function kpiSpec() {
+    const c = state.area, y = LATEST, tot = val(y, c, "tot"), juki = val(y, c, "juki"), d7 = val(y, c, "c7");
+    const num = (v) => (v == null ? { value: "—", unit: "" } : { value: fmt(v), unit: "人" });
+    const tiles = [Object.assign({ label: "住民票上の人数（小・中学校の年齢）", sub: "", main: true }, num(juki))].concat(PARTS.map((k) => {
+      const v = val(y, c, k);
+      return Object.assign({ label: CATS[k].short, color: CATS[k].color, sub: v == null ? noneWhy(y, c, k) : tot > 0 ? `計の${pctText(v, tot)}` : "" }, num(v));
+    }));
+    const facts = tot === 0 ? ["①〜⑥の計が0人のため、割合は出していません。"] : [];
+    if (d7 != null) facts.push(`⑦住民票上の人数と①〜⑥の計の差：${d7 < 0 ? `−${fmt(-d7)}人（①〜⑥の計のほうが多い）` : fmt(d7) + "人"}`);
+    if (c === "00") facts.push(`不就学の可能性（国の数え方：③＋⑤＋⑦）：${fmt(val(y, c, "pos"))}人`);
+    const foot = [srcLine([y]), FOOT_SCOPE];
+    if (val(y, c, "c5") > 0) foot.push(NOTE5);
+    if (c === "00") foot.push(NOTEPOS);
+    const bl = blankNote(y, c, PARTS);
+    if (bl) foot.push(bl);
+    const kn = knownShort(knownFor([y], [c], null));
+    if (kn) foot.push(kn);
+    if (tot > 0 && tot < 30) foot.push("人数が少ないため、割合は1人のちがいで大きく変わります。");
+    return {
+      kind: "tiles", siteName: SITE_NAME, siteUrl: document.body.dataset.site,
+      title: "外国籍の子どもの就学状況",
+      subtitle: [`${areaName(c)}・${yLabel(y)}${asOf(y)}`],
+      legend: [],
+      tiles,
+      bar: tot > 0 ? { caption: `割合は①〜⑥の計（${fmt(tot)}人）に対するもの（国の構成比と同じ）`, segs: PARTS.map((k) => ({ n: val(y, c, k) || 0, color: CATS[k].color, label: pctText(val(y, c, k), tot) })) } : null,
+      facts,
+      foot,
+      file: `shugaku_area_${c}_${y}_${dateStamp()}.png`,
+      label: "",
+    };
   }
 
   // ---- A 人数の推移 ----
@@ -323,7 +407,7 @@
     const msg = [];
     if (regs.some((c) => c !== "00") && YEARS[0] < FIRST_MUNI) msg.push(`都道府県・市区町村の数は${FIRST_MUNI}年からです（${YEARS.filter((y) => y < FIRST_MUNI).join("・")}年は全国の数だけ）。`);
     if (k === "c6") msg.push("⑥その他は2023年からの区分です。それより前は区分がありません（0人ではありません）。");
-    if (k === "pos") msg.push("国の発表の数え方（③不就学＋⑤就学状況を確認できず＋⑦住民票上の人数との差）で、全国だけの数です。");
+    if (k === "pos") msg.push("国の発表の数え方（③不就学＋⑤就学状況を確認できず＋⑦住民票上の人数との差）で、全国だけの数です。不就学と確定した人数ではありません。");
     $("nj-trend-msg").hidden = !msg.length;
     $("nj-trend-msg").textContent = msg.join("");
     $("nj-trend-legend").innerHTML = regs.map((c, i) => `<span class="nj-lg"><svg width="34" height="14" aria-hidden="true"><line x1="2" y1="7" x2="32" y2="7" stroke="${CATS[k].color}" stroke-width="2.5"${i ? ' stroke-dasharray="6 4"' : ""}/>${i ? `<rect x="13" y="3" width="8" height="8" fill="${CATS[k].color}"/>` : `<circle cx="17" cy="7" r="4" fill="${CATS[k].color}"/>`}</svg>${esc(lineName(c))}</span>`).join("") + '<span class="nj-unit">単位：人</span>';
@@ -334,17 +418,29 @@
     const prev = prevOf(state.b, ys), first = ys[0] < state.b ? ys[0] : null;
     $("nj-quick").innerHTML = `<span class="fine">${state.b || ""}年から数えて</span>` + qb(prev, "前回の調査") + (first && first !== prev ? qb(first, "最も古い年") : "");
     renderCompare(regs);
-    // 読み取り文（推移の山だけ。比較の数はグラフに書いてあるので繰り返さない）
-    let say = "";
-    if (ys.length) {
-      const peaks = regs.map((c) => ({ c, ...ys.map((y) => ({ y, v: val(y, c, k) })).reduce((m, p) => (p.v > m.v ? p : m)) }));
-      say = peaks.length > 1
-        ? `表示している調査年の中で最も多いのは、${peaks.map((p) => `${areaName(p.c)}が${p.y}年（${fmt(p.v)}人）`).join("、")}です。`
-        : `表示している調査年の中で最も多いのは${peaks[0].y}年（${fmt(peaks[0].v)}人）です。`;
-    }
+    // 読み取り文（推移の山だけ。比較の数はグラフに書いてあるので繰り返さない）。同じ人数の年は同率として全部書く。空欄の年があれば、確かめられる年の範囲を書く
+    const sayOne = (c) => {
+      const yv = YEARS.filter((y) => val(y, c, k) != null);
+      if (!yv.length) return "";
+      const blanks = YEARS.filter((y) => val(y, c, k) == null && val(y, c, "juki") != null && noneWhy(y, c, k) === "空欄（回答なし）");
+      const span = yv.length > 1 ? `${yv[0]}〜${yv[yv.length - 1]}年` : `${yv[0]}年`;
+      const who = regs.length > 1 ? `${areaName(c)}は、` : "";
+      const mx = Math.max(...yv.map((y) => val(y, c, k)));
+      if (mx === 0) return blanks.length ? `${who}数値を確認できる調査年（${yv.join("・")}年）では、すべて0人です（${blanks.join("・")}年は空欄）。` : `${who}掲載されているすべての調査年（${span}）で0人です。`;
+      const tops = yv.filter((y) => val(y, c, k) === mx);
+      const where = blanks.length ? `数値を確認できる調査年（${yv.join("・")}年。${blanks.join("・")}年は空欄）では` : `掲載されている調査年（${span}）では`;
+      return `${who}${where}、${tops.length > 1 ? `${tops.join("・")}年が同数で最も多く、いずれも${fmt(mx)}人です。` : `${tops[0]}年が最も多く、${fmt(mx)}人です。`}`;
+    };
+    const say = regs.map(sayOne).join("");
     $("nj-trend-say").textContent = say;
     $("nj-trend-say").hidden = !say;
-    $("nj-trend-note").textContent = `点は各年度の調査の人数です。${ys.includes(2019) && ys.includes(2021) ? "2020年度は調査がありません（2019年と2021年を線でつないでいます）。" : ""}`;
+    const tn = ["点は各年度の調査の人数です。"];
+    if (ys.includes(2019) && ys.includes(2021)) tn.push("2020年度は調査がありません（2019年と2021年を線でつないでいます）。");
+    if (k === "c5") tn.push(NOTE5);
+    if (regs.includes("00") && val(2019, "00", k) != null) tn.push(NOTE2019);
+    regs.forEach((c) => YEARS.forEach((y) => { const t = blankNote(y, c, k === "pos" ? ["c3", "c5"] : [k]); if (t) tn.push(t); }));
+    $("nj-trend-note").textContent = tn.join("");
+    $("sg-trend-known").innerHTML = knownHtml(knownFor(YEARS, regs, [k]));
     // 表：地域ごとに、すべての区分を年ごとに並べる
     const td = (y, c, kk) => { const v = val(y, c, kk); return `<td class="num">${v == null ? "—" : fmt(v) + "人"}</td>`; };
     $("nj-trend-table").innerHTML = regs.map((c) => {
@@ -354,7 +450,8 @@
       return `<p class="nj-tt"><b>${esc(areaName(c))}</b></p><table class="plain"><thead><tr><th scope="col">調査年</th>${cols.map((kk) => `<th scope="col" class="num">${esc(name(kk))}</th>`).join("")}</tr></thead><tbody>${rows}</tbody></table>`;
     }).join("") + '<p class="fine">—：区分がない年（⑥は2023年から）、または空欄（回答なし）。0人ではありません。⑦がマイナスのときは、①〜⑥の計のほうが住民票上の人数より多いことを表します。</p>';
     drawTrend();
-    const text = `外国籍の子どもの就学状況（文部科学省の調査）｜${regs.map(areaName).join("・")}の${CATS[k].short}の推移\n${(state.cmpLines || []).join("\n")}\n${SITE_NAME}`;
+    const xn = [k === "c5" ? "※⑤は不就学と確定した人数ではありません" : "", k === "pos" ? "※③＋⑤＋⑦の国の指標で、確定した不就学人数ではありません" : "", state.a === 2019 ? "※2019年度は⑦が大きく、把握状況が異なります" : ""].filter(Boolean);
+    const text = `外国籍の子どもの就学状況（文部科学省の調査）｜${regs.map(areaName).join("・")}の${CATS[k].short}の推移\n${(state.cmpLines || []).concat(xn).join("\n")}\n${SITE_NAME}`;
     setX("trend", text, pageUrl("trend"));
   }
 
@@ -363,7 +460,7 @@
   function renderCompare(regs) {
     const a = state.a, b = state.b, k = state.s, col = CATS[k].color, areas = esc(regs.map(areaName).join("・"));
     state.cmpLines = [];
-    $("nj-cmp-title").textContent = `${CATS[k].short}は、どれくらい増えた？`;
+    $("nj-cmp-title").textContent = k === "juki" ? "住民票上の人数はどう変わった？" : `${CATS[k].short}の人数はどう変わった？`;
     if (!a || !b) {
       $("nj-cmp-sub").innerHTML = `<b>${areas}</b>｜${esc(CATS[k].label)}`;
       $("nj-result").innerHTML = '<p class="cmp-msg">今の地域と区分では、比べられる2つの年がありません。</p>';
@@ -386,7 +483,9 @@
         <div class="nj-cp-body"><ul class="nj-cbars">${bar(a, x.va, true)}${bar(b, x.vb, false)}</ul><div class="nj-cstat">${stat}</div></div></div></div>`;
     }).join("");
     const notes = [];
-    if (a === 2019) notes.push("2019年は⑦（住民票上の人数との差）が大きく、2021年からとは確かめ方の進み具合がちがいます。");
+    if (a === 2019) notes.push(NOTE2019);
+    const kn = knownFor([a, b], regs, [k]);
+    if (kn.length) notes.push(`${knownYears(kn)}年度の${[...new Set(kn.map((x) => N.prefs[x.pref]))].join("・")}は市区町村の合計で比べています（上の注記）。`);
     if (cells.some((x) => x.va != null && x.vb != null && Math.max(x.va, x.vb) < 30)) notes.push("人数が少ないため、倍率や増減率は数人のちがいで大きく変わります。");
     const bl = [...new Set(regs.flatMap((c) => blankIn(a, c, k).concat(blankIn(b, c, k))))];
     if (bl.length) notes.push(`${bl.join("・")}の空欄（回答なし）の分は入っていません。`);
@@ -485,10 +584,20 @@
       const sel = isMuni(c) ? all.find((r) => r.c === c) : null;
       const extra = sel && !rows.includes(sel) ? sel : null;
       if (nulls.length) msgs.push(`${nulls.map((r) => r.name).join("・")}は空欄（回答なし）のため並べていません。`);
+      // 表示件数の境目で同じ人数の地域が切れるとき
+      if (state.top && pos.length > state.top && pos[state.top].v === pos[state.top - 1].v) notes.push(`${pos[state.top - 1].rank}位と同じ人数の${sc.unit}が、グラフに載せた分のほかにもあります（すべて表に載せています）。`);
       if (zeros) notes.push(`0人の${sc.unit}が${zeros}件あります（グラフでは省略し、表に載せています）。`);
-      const bl = blankIn(y, sc.parent, k);
-      if (bl.length && sc.kind === "pref") notes.push(`${y}年の宮城県には、${bl.join("・")}の空欄の分が入っていません。`);
-      return { kind: "rank", sc, y, k, rows, all, extra, zeros, msgs, notes, parentV: val(y, sc.parent, k), title: `${CATS[k].short}の${sc.label}`, head: `${sc.label}・${CATS[k].label}が多い順（${yLabel(y)}）` };
+      const bnotes = sc.kind === "pref" ? PREF_CODES.map((p) => blankNote(y, p, [k])).filter(Boolean) : [];
+      notes.push(...bnotes);
+      // 上位3件の占める割合：3位と同じ人数の地域が4位以下にもあるとき（同順位の一部だけを選ぶことになる）は出さない
+      const parentV = val(y, sc.parent, k), n = 3;
+      let share = "";
+      if (parentV > 0 && pos.length > n && pos[n].v !== pos[n - 1].v) {
+        const sum = pos.slice(0, n).reduce((a, r) => a + r.v, 0);
+        share = `上位${n}${sc.unit}（${pos.slice(0, n).map((r) => r.name).join("・")}）の合計${fmt(sum)}人は、${sc.kind === "pref" ? "全国" : N.prefs[sc.parent]}の${CATS[k].short}${fmt(parentV)}人の${pctText(sum, parentV)}です。`;
+      }
+      const known = sc.kind === "pref" ? knownFor([y], PREF_CODES, [k]) : share ? knownFor([y], [sc.parent], [k]) : [];
+      return { kind: "rank", sc, y, k, rows, all, extra, zeros, msgs, notes, bnotes, known, share, title: `${CATS[k].short}の${sc.label}`, head: `${sc.label}・${CATS[k].label}が多い順（${yLabel(y)}）` };
     }
     const two = state.mode === "two";
     if (two) {
@@ -502,31 +611,35 @@
       const ta = okRows.reduce((s, r) => s + r.a, 0), tb = okRows.reduce((s, r) => s + r.b, 0);
       const bl = [...new Set(PARTS.flatMap((k) => blankIn(ya, c, k).concat(blankIn(yb, c, k))))];
       if (bl.length) notes.push(`${bl.join("・")}の空欄（回答なし）の分は入っていません。`);
-      return { kind: "bd", two: true, ya, yb, rows, ta, tb, partial: okRows.length < rows.length, msgs, notes, area: areaName(c), title: "外国籍の子どもの就学状況の内訳（2年の比較）", head: `${areaName(c)}・${ya}年→${yb}年の就学状況の内訳（①〜⑥）` };
+      return { kind: "bd", two: true, ya, yb, rows, ta, tb, partial: okRows.length < rows.length, msgs, notes, known: knownFor([ya, yb], [c], null), area: areaName(c), title: "外国籍の子どもの就学状況の内訳（2年の比較）", head: `${areaName(c)}・${ya}年→${yb}年の就学状況の内訳（①〜⑥）` };
     }
     const y = state.y, tot = val(y, c, "tot");
     const rows = PARTS.map((k) => { const v = val(y, c, k); return { k, name: CATS[k].label, short: CATS[k].short, v, none: v == null ? noneWhy(y, c, k) : "" }; });
     const bl = [...new Set(PARTS.flatMap((k) => blankIn(y, c, k)))];
     if (bl.length) notes.push(`${bl.join("・")}の②〜⑤は空欄（回答なし）で、この数に入っていません。`);
-    return { kind: "bd", two: false, y, rows, tot, juki: val(y, c, "juki"), d7: val(y, c, "c7"), msgs, notes, area: areaName(c), title: "外国籍の子どもの就学状況の内訳", head: `${areaName(c)}・${yLabel(y)}の就学状況の内訳（①〜⑥の計 ${fmt(tot)}人）` };
+    return { kind: "bd", two: false, y, rows, tot, juki: val(y, c, "juki"), d7: val(y, c, "c7"), msgs, notes, known: knownFor([y], [c], null), area: areaName(c), title: "外国籍の子どもの就学状況の内訳", head: `${areaName(c)}・${yLabel(y)}の就学状況の内訳（①〜⑥の計 ${fmt(tot)}人）` };
   }
 
   function sayOf(D) {
     if (D.kind === "rank") {
-      const top = D.rows[0];
-      if (!top) return `${D.sc.label}で、${D.y}年に${CATS[D.k].short}が1人以上の${D.sc.unit}はありません。`;
-      const tops = D.rows.filter((r) => r.rank === 1);
-      let s = `${D.sc.label}で${CATS[D.k].short}が最も多いのは${tops.map((r) => r.name).join("・")}（${fmt(top.v)}人）です。`;
-      if (D.parentV > 0) { const n = Math.min(3, D.rows.length), sum = D.rows.slice(0, n).reduce((a, r) => a + r.v, 0); s += `上位${n}件で、${D.sc.kind === "pref" ? "全国" : N.prefs[D.sc.parent]}の${fmt(D.parentV)}人の${pctText(sum, D.parentV)}を占めます。`; }
-      return s;
+      // 最多は表示件数ではなく、順位表の全件から決める（同じ人数は同率）
+      const tops = D.all.filter((r) => r.rank === 1 && r.v > 0);
+      if (!tops.length) return `${D.sc.label}で、${D.y}年に${CATS[D.k].short}が1人以上の${D.sc.unit}はありません。`;
+      const s = tops.length > 5
+        ? `${D.sc.label}で${CATS[D.k].short}が最も多いのは${fmt(tops[0].v)}人で、${tops.length}${D.sc.unit}が同率最多です（すべて表で確認できます）。`
+        : `${D.sc.label}で${CATS[D.k].short}が最も多いのは${tops.map((r) => r.name).join("・")}（${tops.length > 1 ? "同率・" : ""}${fmt(tops[0].v)}人）です。`;
+      return s + D.share;
     }
     if (D.two) {
-      const ok = D.rows.filter((r) => r.status === "ok" && r.d);
-      if (!ok.length) return `${D.ya}年と${D.yb}年で、比べられる区分の人数は変わっていません。`;
-      const big = ok.slice().sort((a, b) => Math.abs(b.d) - Math.abs(a.d))[0];
-      return `${D.ya}年から${D.yb}年にかけて、人数の変化がいちばん大きいのは${big.name}（${fmt(big.a)}人→${fmt(big.b)}人、${moveWord(big.d)}）です。`;
+      const ok = D.rows.filter((r) => r.status === "ok");
+      if (!ok.length) return `${D.ya}年と${D.yb}年では、比較できる区分がありません。`;
+      const moved = ok.filter((r) => r.d);
+      if (!moved.length) return `${D.ya}年と${D.yb}年で、比較できる区分の人数は変わっていません。`;
+      const mx = Math.max(...moved.map((r) => Math.abs(r.d))), bigs = moved.filter((r) => Math.abs(r.d) === mx);
+      const one = (r) => `${r.name}（${fmt(r.a)}人→${fmt(r.b)}人、${moveWord(r.d)}）`;
+      return `${D.ya}年から${D.yb}年にかけて、人数の変化がいちばん大きいのは${bigs.map(one).join("と")}です${bigs.length > 1 ? "（変化の大きさが同じ）" : ""}。`;
     }
-    return D.y === LATEST ? "" : summary(D.y, state.area); // 最新の年は上の「地域のデータ」に同じ文があるので出さない
+    return D.y === LATEST ? "" : summary(D.y, state.area).join(""); // 最新の年は上の「地域のデータ」に同じ文があるので出さない
   }
 
   function renderBreakdown() {
@@ -551,12 +664,13 @@
     if (rank) renderRank(D); else if (two) renderPair(D); else renderOne(D);
     $("nj-bd-say").textContent = sayOf(D);
     $("nj-bd-say").hidden = !$("nj-bd-say").textContent;
+    $("sg-bd-known").innerHTML = knownHtml(D.known);
     const ys = rank || !two ? [D.y] : [D.ya, D.yb];
     $("nj-bd-note").innerHTML = D.notes.map(esc).join("") + ` 出典：${esc(SURVEY)} ${ys.map((y) => `<a href="${esc(Y(y).src.url)}" target="_blank" rel="noopener" title="${esc(Y(y).src.title)}">${esc(Y(y).fy)}</a>`).join("・")}${Y(ys[0]).nat_only ? "（国の結果資料）" : "（e-Stat の市区町村別データ）"}`;
     let text;
-    if (rank) text = `${D.title}｜${D.y}年\n${D.rows.slice(0, 3).map((r) => `${r.rank}位 ${r.name} ${fmt(r.v)}人`).join("\n")}\n${SITE_NAME}`;
+    if (rank) text = `${D.title}｜${D.y}年\n${D.rows.slice(0, 3).map((r) => `${r.rank}位 ${r.name} ${fmt(r.v)}人`).join("\n")}${D.k === "c5" ? "\n※⑤は不就学と確定した人数ではありません" : ""}\n${SITE_NAME}`;
     else if (two) text = `${D.title}｜${D.area}・${D.ya}年→${D.yb}年\n${D.rows.filter((r) => r.status === "ok").map((r) => `${r.name} ${fmt(r.a)}人→${fmt(r.b)}人`).slice(0, 4).join("\n")}\n${SITE_NAME}`;
-    else text = `${D.title}｜${D.area}・${D.y}年\n住民票上の人数 ${fmt(D.juki)}人\n${D.rows.filter((r) => r.v != null).slice(0, 5).map((r) => `${r.short} ${fmt(r.v)}人（${pctText(r.v, D.tot)}）`).join("\n")}\n${SITE_NAME}`;
+    else text = `${D.title}｜${D.area}・${D.y}年\n住民票上の人数 ${fmt(D.juki)}人\n${countLines(D.y, state.area).join("\n")}\n${SITE_NAME}`; // 人数だけ（割合は入れない）
     setX("bd", text, pageUrl("breakdown"));
   }
 
@@ -580,13 +694,13 @@
   const cell = (v) => `<td class="num">${v == null ? "—" : fmt(v) + "人"}</td>`;
 
   function renderOne(D) {
-    $("nj-bd-legend").innerHTML = '<span class="nj-unit">単位：人</span>';
+    $("nj-bd-legend").innerHTML = '<span class="nj-unit">単位：人・割合は①〜⑥の計に対するもの</span>';
     const max = Math.max(1, ...D.rows.map((r) => r.v || 0));
     const detail = (r) => (r.none ? r.none : `${fmt(r.v)}人（①〜⑥の計の${pctText(r.v, D.tot)}）`);
     $("nj-bars").innerHTML = '<ol class="nj-rows">' + D.rows.map((r, i) => `<li class="nj-row" tabindex="0" data-i="${i}" aria-label="${esc(r.name)}：${esc(detail(r))}">
         <span class="nj-name">${esc(r.short)}</span><span class="nj-track">${r.v ? `<span class="nj-seg" style="width:${(r.v / max) * 100}%;background:${CATS[r.k].color}"></span>` : ""}</span><span class="nj-v">${r.none ? "—" : `${fmt(r.v)}人<small class="sg-pct">${pctText(r.v, D.tot)}</small>`}</span></li>`).join("") + '</ol><div class="nj-tip" id="nj-btip" hidden></div>';
     bindTips(D.rows, detail);
-    $("nj-bd-table").innerHTML = `<table class="plain"><thead><tr><th scope="col">区分</th><th scope="col" class="num">人数</th><th scope="col" class="num">割合</th></tr></thead><tbody>${D.rows.map((r) => `<tr><th scope="row">${esc(r.name)}</th>${cell(r.v)}<td class="num">${r.v == null ? "—" : pctText(r.v, D.tot)}</td></tr>`).join("")}<tr class="on"><th scope="row">①〜⑥の計</th>${cell(D.tot)}<td class="num">100.0％</td></tr><tr><th scope="row">住民票上の人数（学齢相当）</th>${cell(D.juki)}<td class="num">—</td></tr><tr><th scope="row">⑦住民票上の人数との差（参考）</th>${cell(D.d7)}<td class="num">—</td></tr></tbody></table><p class="fine">割合は①〜⑥の計に対するもので、小数第2位を四捨五入しているため、足して100％にならないことがあります。—：区分がない年、または空欄（回答なし）。</p>`;
+    $("nj-bd-table").innerHTML = `<table class="plain"><thead><tr><th scope="col">区分</th><th scope="col" class="num">人数</th><th scope="col" class="num">割合</th></tr></thead><tbody>${D.rows.map((r) => `<tr><th scope="row">${esc(r.name)}</th>${cell(r.v)}<td class="num">${r.v == null ? "—" : pctText(r.v, D.tot)}</td></tr>`).join("")}<tr class="on"><th scope="row">①〜⑥の計</th>${cell(D.tot)}<td class="num">${D.tot > 0 ? "100.0％" : "—"}</td></tr><tr><th scope="row">住民票上の人数（学齢相当）</th>${cell(D.juki)}<td class="num">—</td></tr><tr><th scope="row">⑦住民票上の人数との差（参考）</th>${cell(D.d7)}<td class="num">—</td></tr></tbody></table><p class="fine">割合は①〜⑥の計に対するもので、小数第2位を四捨五入しているため、足して100％にならないことがあります。—：区分がない年、または空欄（回答なし）。</p>`;
   }
 
   function renderPair(D) {
@@ -637,10 +751,9 @@
       const o = Y(y), s = o.src;
       return `<tr><th scope="row">${yLabel(y)}</th><td>${o.as_of ? jpDate(o.as_of) : "—"}</td><td><a href="${esc(s.url)}" target="_blank" rel="noopener">${esc(s.title)}</a>${s.updated ? `（e-Stat、${jpDate(s.updated)}更新）` : ""}</td></tr>`;
     }).join("");
-    const known = (N.known || []).map((k) => k.note + "。").join("");
     return `<table class="plain nj-src"><thead><tr><th scope="col">調査年</th><th scope="col">基準日</th><th scope="col">使った表</th></tr></thead><tbody>${rows}</tbody></table>
-      <p class="fine">出典：${esc(SURVEY)}（各年度、<a href="${esc(N.estat_url)}" target="_blank" rel="noopener">e-Stat</a>）。${esc(N.terms)}（${esc(N.checked)}）。数字は国の表のとおりで、都道府県・全国の和と、⑦（住民票上の人数 − ①〜⑥の計）だけを計算しています。区分の説明は<a href="${esc(N.mext.url)}" target="_blank" rel="noopener">${esc(N.mext.title)}</a>（${esc(jpDate(N.mext.date))}）によります。基準日の「—」は、国の資料で確かめられなかった年です。</p>
-      ${known ? `<p class="fine">元の表の食いちがい：${esc(known)}</p>` : ""}`;
+      <p class="fine">出典：${esc(SURVEY)}（各年度、<a href="${esc(N.estat_url)}" target="_blank" rel="noopener">e-Stat</a>）。${esc(N.terms)}（${esc(N.checked)}）。数字は国の表のとおりです。計算しているのは、2021年度からの都道府県・全国（市区町村の和）と、⑦（住民票上の人数 − ①〜⑥の計）だけです。2019年度の全国は、国の結果資料の表の数です。区分の説明は<a href="${esc(N.mext.url)}" target="_blank" rel="noopener">${esc(N.mext.title)}</a>（${esc(jpDate(N.mext.date))}）によります。基準日の「—」は、国の資料で確かめられなかった年です。</p>
+      ${knownHtml(N.known || [])}`;
   }
 
   // ---- 画像 ----
@@ -656,7 +769,8 @@
     spec.unit = "単位：人";
     spec.noDataLabel = "";
     spec.summary = state.cmpLines || [];
-    spec.foot = [srcLine(shown), FOOT_SCOPE, shown.includes(2019) && shown.includes(2021) ? "2020年度は調査なし。" : ""].filter(Boolean);
+    spec.foot = [srcLine(shown), FOOT_SCOPE, shown.includes(2019) && shown.includes(2021) ? "2020年度は調査なし。" : "", k === "c5" ? NOTE5 : "", k === "pos" ? NOTEPOS : "", shown.includes(2019) ? NOTE2019 : ""]
+      .concat(regs.flatMap((c) => shown.map((y) => blankNote(y, c, k === "pos" ? ["c3", "c5"] : [k]))), [knownShort(knownFor(shown, regs, [k]))]).filter(Boolean);
     spec.file = `shugaku_trend_${regs.join("-")}_${k}_${dateStamp()}.png`;
     return [spec];
   }
@@ -676,7 +790,7 @@
           legend: [],
           rows: rows.map((r) => ({ name: `${r.rank}位 ${r.name}`, segs: [{ n: r.v || 0, color: CATS[D.k].color }], value: fmt(r.v) + "人", sub: D.k === "juki" ? "" : `住民票上の人数 ${fmt(r.juki)}人` })),
           max,
-          foot: [srcLine([D.y]), FOOT_SCOPE].concat(D.rows.length > list.length ? [`上位${list.length}件までを載せています。`] : []),
+          foot: [srcLine([D.y]), FOOT_SCOPE].concat(D.rows.length > list.length ? [`上位${list.length}件までを載せています。`] : [], D.k === "c5" ? [NOTE5] : [], D.bnotes, [knownShort(D.known)]).filter(Boolean),
           file: `shugaku_rank_${D.sc.parent}_${D.k}_${D.y}${chunks.length > 1 ? "-" + (i + 1) : ""}_${dateStamp()}.png`,
           label: range,
         });
@@ -694,7 +808,7 @@
           value: "",
           sub: r.status === "ok" ? `${changeText(r.a, r.b).diff}${r.pct === null ? "" : `（増減率 ${changeText(r.a, r.b).pct}）`}` : "比べません",
         })),
-        foot: [srcLine([D.ya, D.yb]), FOOT_SCOPE].concat(whys.length ? ["※は比べていない区分：" + whys.join("。") + "。"] : []),
+        foot: [srcLine([D.ya, D.yb]), FOOT_SCOPE].concat(whys.length ? ["※は比べていない区分：" + whys.join("。") + "。"] : [], D.rows.some((r) => r.k === "c5" && (r.a > 0 || r.b > 0)) ? [NOTE5] : [], D.notes, [knownShort(D.known)]).filter(Boolean),
         file: `shugaku_breakdown_2years_${state.area}_${D.ya}-${D.yb}_${dateStamp()}.png`,
         label: "",
       })];
@@ -703,9 +817,9 @@
       title: D.title,
       subtitle: [`${D.area}・${yLabel(D.y)}${asOf(D.y) ? asOf(D.y) : ""}`, `住民票上の人数 ${fmt(D.juki)}人・①〜⑥の計 ${fmt(D.tot)}人`],
       legend: [],
-      rows: D.rows.map((r) => ({ name: r.short, segs: [{ n: r.v || 0, color: CATS[r.k].color }], value: r.none ? "—" : fmt(r.v) + "人", sub: r.none ? r.none : `計の${pctText(r.v, D.tot)}` })),
+      rows: D.rows.map((r) => ({ name: r.short, segs: [{ n: r.v || 0, color: CATS[r.k].color }], value: r.none ? "—" : fmt(r.v) + "人", sub: r.none ? r.none : D.tot > 0 ? `計の${pctText(r.v, D.tot)}` : "" })),
       max: Math.max(1, ...D.rows.map((r) => r.v || 0)),
-      foot: [srcLine([D.y]), FOOT_SCOPE, "割合は①〜⑥の計に対するもの。"].concat(D.notes),
+      foot: [srcLine([D.y]), FOOT_SCOPE, D.tot > 0 ? "割合は①〜⑥の計に対するもの。" : "①〜⑥の計が0人のため、割合は出していません。", val(D.y, state.area, "c5") > 0 ? NOTE5 : ""].concat(D.notes, [knownShort(D.known)]).filter(Boolean),
       file: `shugaku_breakdown_${state.area}_${D.y}_${dateStamp()}.png`,
       label: "",
     })];
@@ -720,13 +834,13 @@
     $("img-x").href = a.href;
     $("img-x-text").textContent = a.dataset.text;
     const D = state.bd;
-    $("img-what").textContent = which === "trend" ? "いま表示している推移のグラフを、Xに載せやすい縦長の画像（1080×1350）にします。" : `いま表示している${D.kind === "rank" ? "地域の順位" : D.two ? "内訳の2年比較" : "就学状況の内訳"}のグラフを、縦長の画像（1080×1350）にします。${D.kind === "rank" && D.rows.length > PAGE ? `字が小さくならないよう、${PAGE}件ずつ分けて保存します（${PAGE * 4}件まで）。` : ""}`;
+    $("img-what").textContent = which === "trend" ? "いま表示している推移のグラフを、Xに載せやすい縦長の画像（1080×1350）にします。" : which === "kpi" ? `いま表示している${areaName(state.area)}のデータ（${LATEST}年の人数と割合）を、Xに載せやすい縦長の画像（1080×1350）にします。` : `いま表示している${D.kind === "rank" ? "地域の順位" : D.two ? "内訳の2年比較" : "就学状況の内訳"}のグラフを、縦長の画像（1080×1350）にします。${D.kind === "rank" && D.rows.length > PAGE ? `字が小さくならないよう、${PAGE}件ずつ分けて保存します（${PAGE * 4}件まで）。` : ""}`;
     $("img-dialog").showModal();
     renderImage();
   }
 
   function renderImage() {
-    const specs = imageWhich === "trend" ? trendSpec() : barsSpecs();
+    const specs = imageWhich === "trend" ? trendSpec() : imageWhich === "kpi" ? [kpiSpec()] : barsSpecs();
     const pg = $("img-page");
     pg.hidden = specs.length < 2;
     pg.innerHTML = specs.length > 1 ? specs.map((s, i) => `<button type="button" data-p="${i}" aria-pressed="${i === imagePage}">${esc(s.label)}</button>`).join("") : "";

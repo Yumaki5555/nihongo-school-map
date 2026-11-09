@@ -842,6 +842,96 @@ window.MapImage = (function () {
     return toPng(canvas);
   }
 
+  function rrect(ctx, x, y, w, h, r) {
+    ctx.beginPath(); ctx.moveTo(x + r, y);
+    ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath();
+  }
+
+  // 地域のデータ（数字のカード）：上に全体の数（全幅）、下に区分のカードを3列で。その下に割合の帯（0〜100％。マイナスは入れない）と補足の行
+  // spec.tiles：[{ label, value, unit, sub, color, main }]、spec.bar：{ caption, segs: [{ n, color, label }] } か null、spec.facts：補足の文
+  function renderTiles(spec) {
+    const canvas = document.createElement("canvas");
+    canvas.width = RW; canvas.height = RH;
+    const ctx = canvas.getContext("2d");
+    const { top, bottom, cw } = portraitFrame(ctx, spec);
+    const g = 16, cols = 3;
+    const main = spec.tiles.filter((t) => t.main), rest = spec.tiles.filter((t) => !t.main);
+    const nRows = main.length + Math.ceil(rest.length / cols);
+    ctx.font = font(28, true);
+    const facts = [];
+    (spec.facts || []).forEach((t) => wrapJa(ctx, t, cw).forEach((l) => facts.push(l)));
+    const barH = spec.bar ? 34 + 12 + 54 + g + 6 : 0;
+    const factH = facts.length ? facts.length * 40 + 10 : 0;
+    const th = Math.round(Math.max(100, Math.min(190, (bottom - top - 6 - barH - factH - g * nRows) / nRows)));
+    const pad = Math.round(th * 0.12) + 6;
+    const tw = (cw - g * (cols - 1)) / cols;
+    // 文字の大きさは、同じ段のカードでそろえる（いちばん長い名前・数字が入る大きさ）
+    const fit = (texts, maxW, px, min, bold) => texts.reduce((p, t) => Math.min(p, fitFont(ctx, t, maxW, px, min, bold)), px);
+    const sizes = (list, w) => {
+      const inner = w - pad * 2 - (list.some((t) => t.main) ? 8 : 0);
+      const lp0 = Math.round(Math.min(30, th * 0.19));
+      const lp = fit(list.map((t) => t.label), inner - (list.some((t) => t.color) ? lp0 * 0.8 + 10 : 0), lp0, 18, true);
+      const width = (t, vp) => {
+        let u = 0;
+        if (t.unit) { ctx.font = font(Math.round(vp * 0.45)); u = ctx.measureText(t.unit).width + 6; }
+        ctx.font = font(vp, true);
+        return ctx.measureText(t.value).width + u;
+      };
+      let vp = Math.round(Math.min(68, th * 0.38));
+      while (vp > 28 && Math.max(...list.map((t) => width(t, vp))) > inner) vp--;
+      return { lp, vp, sp: Math.round(Math.min(25, th * 0.15)), inner };
+    };
+    const drawTile = (t, x, y, w, S) => {
+      rrect(ctx, x, y, w, th, 12); ctx.fillStyle = "#FFFFFF"; ctx.fill();
+      ctx.strokeStyle = RC.line; ctx.lineWidth = 2; ctx.stroke();
+      if (t.main) { ctx.save(); rrect(ctx, x, y, w, th, 12); ctx.clip(); ctx.fillStyle = C.brand; ctx.fillRect(x, y, 8, th); ctx.restore(); }
+      const lx = x + pad + (t.main ? 8 : 0);
+      const ly = y + pad + S.lp * 0.86;
+      let tx = lx;
+      if (t.color) { const s = Math.round(S.lp * 0.8); ctx.fillStyle = t.color; ctx.fillRect(tx, ly - s, s, s); tx += s + 10; }
+      ctx.fillStyle = RC.ink; ctx.font = font(S.lp, true); ctx.fillText(t.label, tx, ly);
+      const vy = ly + S.vp * 1.02 + 4;
+      ctx.font = font(S.vp, true); ctx.fillText(t.value, lx, vy);
+      if (t.unit) { const vw = ctx.measureText(t.value).width; ctx.font = font(Math.round(S.vp * 0.45)); ctx.fillStyle = RC.muted; ctx.fillText(t.unit, lx + vw + 6, vy); }
+      if (t.sub) { fitFont(ctx, t.sub, S.inner, S.sp, 16); ctx.fillStyle = RC.muted; ctx.fillText(t.sub, lx, y + th - pad * 0.62); }
+    };
+    // 余った高さは、かたまりの間に少しずつ分ける（下にだけ大きな空きを残さない）
+    const blocks = (main.length ? 1 : 0) + 1 + (spec.bar ? 1 : 0) + (facts.length ? 1 : 0);
+    const add = Math.min(44, Math.max(0, (bottom - top - 6 - nRows * (th + g) - barH - factH) / blocks));
+    let y = top + 6;
+    if (main.length) { const S = sizes(main, cw); main.forEach((t) => { drawTile(t, RM, y, cw, S); y += th + g; }); y += add; }
+    const S = sizes(rest, tw);
+    rest.forEach((t, i) => {
+      drawTile(t, RM + (i % cols) * (tw + g), y, tw, S);
+      if (i % cols === cols - 1 || i === rest.length - 1) y += th + g;
+    });
+    y += add;
+    if (spec.bar) {
+      y += 6;
+      ctx.fillStyle = RC.muted; fitFont(ctx, spec.bar.caption, cw, 26, 18, true);
+      ctx.fillText(spec.bar.caption, RM, y + 26);
+      y += 34 + 12;
+      const total = spec.bar.segs.reduce((s, b) => s + (b.n || 0), 0);
+      const shown = spec.bar.segs.filter((b) => b.n > 0);
+      const room = cw - 2 * Math.max(0, shown.length - 1);
+      let x = RM;
+      shown.forEach((b, i) => {
+        const w = i === shown.length - 1 ? RM + cw - x : (room * b.n) / total;
+        ctx.fillStyle = b.color; ctx.fillRect(x, y, w, 54);
+        ctx.font = font(24, true);
+        if (b.label && ctx.measureText(b.label).width + 16 <= w) { ctx.fillStyle = "#FFFFFF"; ctx.textAlign = "center"; ctx.fillText(b.label, x + w / 2, y + 36); ctx.textAlign = "left"; }
+        x += w + 2;
+      });
+      y += 54 + g + add;
+    }
+    if (facts.length) {
+      ctx.fillStyle = RC.ink; ctx.font = font(28, true);
+      facts.forEach((l, i) => ctx.fillText(l, RM, y + 30 + i * 40));
+    }
+    return toPng(canvas);
+  }
+
   // 推移の折れ線：横軸は調査年（年の間隔どおり）、縦軸は0から。点は調査をした年だけ。データのない年は線でつながない
   function renderTrend(spec) {
     const canvas = document.createElement("canvas");
@@ -941,6 +1031,7 @@ window.MapImage = (function () {
     if (spec.kind === "ranking") return renderRanking(spec);
     if (spec.kind === "compare") return renderCompare(spec);
     if (spec.kind === "bars") return renderBars(spec);
+    if (spec.kind === "tiles") return renderTiles(spec);
     if (spec.kind === "trend") return renderTrend(spec);
     const canvas = document.createElement("canvas");
     canvas.width = W; canvas.height = H;

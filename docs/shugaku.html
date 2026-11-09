@@ -21,7 +21,7 @@
 <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 
-<link rel="stylesheet" href="style.css?v=cb08b3f0">
+<link rel="stylesheet" href="style.css?v=64543080">
 <style>nihon-site-nav:not(:defined){display:block;min-height:45px;padding:0 16px;background:#f4f6f6;border-bottom:1px solid #d5dcde;font:14px/44px system-ui,sans-serif}@media print{nihon-site-nav{display:none!important}}</style>
 </head>
 <body data-page="shugaku" data-site="https://yumaki5555.github.io/nihongo-school-map/">
@@ -39,21 +39,22 @@
     <a href="shugaku.html" aria-current="page"><b>住んでいる子どもの就学状況</b><small>就学状況等調査・市区町村別</small></a>
   </nav>
   <h1>外国籍の子どもの就学状況 — 市区町村別</h1>
-  <p class="lead">住民票がある小・中学校の年齢の外国籍の子どもについて、住んでいる市区町村の教育委員会が「学校に通っているか」を確かめた結果です。学校に通っていない子どもや、外国人学校に通う子どもも含みます。</p>
+  <p class="lead">住民票がある小・中学校の年齢の外国籍の子どもについて、住んでいる市区町村の教育委員会が就学状況（学校に在籍しているかなど）を確かめた結果です。外国人学校に在籍する子どもや、不就学と報告された子ども、就学状況を確認できなかった子どもも含みます。</p>
   <details class="nj-howto" id="nj-howto"><summary>この統計の見方</summary>
     <dl>
       <dt>どんな数？</dt>
       <dd>文部科学省「外国人の子供の就学状況等調査」で、全国1,741の市区町村の教育委員会が答えた人数です。対象は、住民票（住民基本台帳）に載っている学齢相当（小学校・中学校の年齢）の外国籍の子どもです。</dd>
       <dt>①〜⑦の区分の意味は？</dt>
-      <dd>①日本の小・中学校など（義務教育諸学校）に在籍、②外国人学校に在籍、③不就学（学校に通っていない）、④転居・出国（予定を含む）、⑤就学状況を確認できず（教育委員会が確かめようとしたが、不在や連絡がつかず把握できなかった子ども）、⑥その他（①〜⑤のどれにも当たらない子ども。母国などの学校のオンライン授業を受けている など）。⑦は参考の数で、住民票上の人数と①〜⑥の計の差です。⑦には、教育委員会が確認の対象にしていないため就学状況が分からない子どもなどが含まれます。</dd>
+      <dd>①日本の小・中学校など（義務教育諸学校）に在籍、②外国人学校に在籍、③不就学（学校に通っていない）、④転居・出国（予定を含む）、⑤就学状況を確認できず（教育委員会が確かめようとしたが、不在や連絡がつかず把握できなかった子ども）、⑥その他（①〜⑤のどれにも当たらない子ども。母国などの学校のオンライン授業を受けている など）。⑦は参考の数で、住民票上の人数と①〜⑥の計の差です。⑦には、教育委員会が確認の対象にしていないため就学状況が分からない子どもなどが含まれます。⑦は差し引きの数で、⑤のように一人ひとりの状況を確かめた人数ではありません。<br>①②は学校に「在籍している」人数です。実際に登校しているかどうか（不登校の人数など）は、この数からは分かりません。</dd>
       <dt>「外国籍の子ども」のページの数とのちがいは？</dt>
       <dd>
         <div class="tablewrap"><table class="plain nj-diff">
           <thead><tr><th scope="col"></th><th scope="col">このページ（就学状況等調査）</th><th scope="col"><a href="foreign.html">外国籍の子ども</a>（学校基本調査）</th></tr></thead>
           <tbody>
             <tr><th scope="row">数える元</th><td>住民票がある子ども（市区町村が答える）</td><td>学校に在籍している子ども（学校が答える）</td></tr>
-            <tr><th scope="row">学校に通っていない子ども</th><td>入る（③⑤など）</td><td>入らない</td></tr>
-            <tr><th scope="row">外国人学校の子ども</th><td>入る（②）</td><td>入らない</td></tr>
+            <tr><th scope="row">不就学と報告された子ども</th><td>③として含む</td><td>入らない</td></tr>
+            <tr><th scope="row">就学状況を確認できなかった子ども</th><td>⑤として含む（不就学と確定した人数ではない）</td><td>入らない</td></tr>
+            <tr><th scope="row">外国人学校に在籍する子ども</th><td>②として含む</td><td>入らない</td></tr>
             <tr><th scope="row">年齢・学校</th><td>小・中学校の年齢だけ</td><td>小学校〜高等学校など</td></tr>
             <tr><th scope="row">どこの数か</th><td>住んでいる市区町村</td><td>学校のある都道府県</td></tr>
           </tbody>
@@ -61,7 +62,7 @@
         数え方の元がちがうので、2つの数を足したり引いたりはできません（たとえば「住民票の人数 − 学校にいる人数 ＝ 学校に通っていない子ども」にはなりません）。
       </dd>
       <dt>国の「不就学の可能性がある子ども」とは？</dt>
-      <dd>国は③不就学・⑤就学状況を確認できず・⑦住民票上の人数との差を合わせた数を「不就学の可能性があると考えられる外国人の子供の数」として発表しています。このページでは、全国の数だけを国の発表どおりに載せています（市区町村では⑦がマイナスになることがあるため、合わせた数は出していません）。</dd>
+      <dd>国は③不就学・⑤就学状況を確認できず・⑦住民票上の人数との差を合わせた数を「不就学の可能性があると考えられる外国人の子供の数」として発表しています。確認できなかった人数（⑤）や差し引きの数（⑦）を含むため、「学校に通っていないことが確認された人数」ではありません。このページでは、全国の数だけを国の発表どおりに載せています（市区町村では⑦がマイナスになることがあるため、合わせた数は出していません）。</dd>
     </dl>
     <p class="fine">出典：文部科学省「外国人の子供の就学状況等調査」（各年度、e-Stat の市区町村別データ）。区分の説明は、文部科学省「<a href="https://www.mext.go.jp/b_menu/houdou/31/09/1421568_00006.htm" target="_blank" rel="noopener">外国人の子供の就学状況等調査（令和7年度）の結果について</a>」（2026年5月25日）によります。</p>
   </details>
@@ -80,12 +81,14 @@
       <button type="button" data-go="trend">増減を見る</button><button type="button" data-go="bd">内訳を見る</button><button type="button" data-go="rank">地域の順位を見る</button>
     </nav>
     <section class="nj-kpi" id="area" aria-labelledby="nj-area-title">
-      <div class="nj-area-bar"><h2 id="nj-area-title" tabindex="-1">全国のデータ</h2><button type="button" class="btn-x" id="nj-reset" hidden>全国に戻す</button></div>
+      <div class="nj-area-bar"><h2 id="nj-area-title" tabindex="-1">全国のデータ</h2><button type="button" class="btn-x" id="nj-reset" hidden>全国に戻す</button><div class="rk-acts sg-kpi-acts" id="nj-kpi-acts"></div></div>
       <p class="nj-kpi-when" id="nj-kpi-when"></p>
       <ul class="nj-kpis nj-k4" id="nj-kpis"></ul>
+      <p class="fine sg-basis" id="sg-basis"></p>
       <div class="sg-comp" id="sg-comp"></div>
-      <p class="nj-say" id="sg-say"></p>
+      <div class="nj-say" id="sg-say"></div>
       <p class="fine" id="nj-kpi-note"></p>
+      <div id="sg-kpi-known"></div>
     </section>
 
     <section class="nj-card" id="trend" aria-labelledby="nj-trend-title">
@@ -101,9 +104,10 @@
       <div class="nj-legend" id="nj-trend-legend"></div>
       <div class="nj-chart" id="nj-trend-chart"></div>
       <p class="fine" id="nj-trend-note"></p>
+      <div id="sg-trend-known"></div>
       <p class="nj-say" id="nj-trend-say"></p>
       <div class="nj-cmp" id="nj-cmp">
-        <h3 id="nj-cmp-title">どれくらい増えた？</h3>
+        <h3 id="nj-cmp-title">人数はどう変わった？</h3>
         <p class="nj-cmp-sub" id="nj-cmp-sub"></p>
         <p class="nj-cmp-label" id="nj-cmp-label">2つの年を比較</p>
         <div class="nj-quick" id="nj-quick" role="group" aria-labelledby="nj-cmp-label"></div>
@@ -142,6 +146,7 @@
       <div class="nj-bars" id="nj-bars"></div>
       <p class="nj-say" id="nj-bd-say"></p>
       <p class="fine" id="nj-bd-note"></p>
+      <div id="sg-bd-known"></div>
       <details class="nj-table"><summary>数値を表で見る</summary><div class="tablewrap" id="nj-bd-table"></div></details>
     </section>
 
@@ -160,7 +165,8 @@
           <li>2021年度の仙台市は、②〜⑤の欄が空欄（回答なし）です。この年の宮城県と全国の②〜⑤には、仙台市の分が入っていません。</li>
           <li>2019年度は⑦（住民票上の人数との差）が10,132人と大きく、2021年度からとは確かめ方の進み具合がちがいます。年をまたいで比べるときは注意してください。</li>
           <li>組合で教育委員会を置いている町村（岐阜県の岐南町・笠松町、京都府の笠置町・和束町・南山城村）も、町村ごとの数です。</li>
-          <li>都道府県と全国の数は、市区町村の数を足したものです。全国は、どの年も国の結果資料の表と一致することを確かめています。</li>
+          <li>2021年度からの都道府県と全国の数は、市区町村の数を足したものです（全国は、国の結果資料の表と一致することを確かめています）。2019年度の全国の数は、文部科学省の結果資料の表から載せています。</li>
+          <li>2024年度の山形県・茨城県は、e-Stat原表の県の行と市区町村の合計に差があります。このサイトでは市区町村の合計を載せています（くわしくは下の表のあとに記載）。差が生じた理由は確認できていません。</li>
           <li id="sg-asof"></li>
         </ul>
         <div class="tablewrap" id="nj-src-table"></div>
@@ -197,6 +203,6 @@
   <p class="foot-links"><a href="sources.html">出典・利用条件</a><a href="https://docs.google.com/forms/d/e/1FAIpQLSeMRMh8OCG1ZClms-6yE_TXk7xcAizr5k9-E5q6iiOx2r2xMA/viewform" target="_blank" rel="noopener">情報の訂正・お問い合わせ</a></p>
   <p class="muted">最終確認：2026-11-07</p>
 </footer>
-<script src="map-image.js?v=d2e5c910"></script><script src="shugaku.js?v=6328faf1"></script>
+<script src="map-image.js?v=51e823a7"></script><script src="shugaku.js?v=0e868a45"></script>
 </body>
 </html>
