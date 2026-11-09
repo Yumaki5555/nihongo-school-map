@@ -515,3 +515,36 @@ table.plain { width: 100%; border-collapse: collapse; font-size: .92rem; }
   .site-menu { gap: 0; }
   .site-menu a { padding: 2px 1px; }
 }
+
+/* 外国籍の子ども：2つのページの切り替え（学校基本調査／就学状況等調査） */
+.nj-pages { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin: 4px 0 12px; }
+.nj-pages a { display: flex; flex-direction: column; gap: 2px; padding: 8px 12px; border: 1px solid var(--brand); border-radius: 8px; background: var(--white); color: var(--brand-dark); text-decoration: none; line-height: 1.35; min-width: 0; }
+.nj-pages a b { font-size: .92rem; }
+.nj-pages a small { font-size: .76rem; color: var(--muted); }
+.nj-pages a:hover { background: var(--soft); }
+.nj-pages a[aria-current="page"] { background: var(--brand); color: var(--white); }
+.nj-pages a[aria-current="page"] small { color: var(--white); }
+.nj-pages a:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+/* 就学状況のページ：地域の検索・内訳の帯 */
+.nj-tools .sg-find, .sg-find { position: relative; flex: 1 1 15em; max-width: 360px; }
+.sg-box { position: relative; }
+.sg-box input { width: 100%; box-sizing: border-box; min-height: 40px; padding: 6px 10px; font: inherit; font-weight: 400; border: 1px solid var(--line); border-radius: 8px; background: var(--white); color: var(--ink); }
+.sg-list { position: absolute; z-index: 30; left: 0; right: 0; top: calc(100% + 2px); max-height: 320px; overflow-y: auto; margin: 0; padding: 4px 0; list-style: none; background: var(--white); border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 6px 18px rgba(53, 45, 32, .16); font-weight: 400; color: var(--ink); }
+.sg-list li { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; padding: 9px 12px; cursor: pointer; }
+.sg-list li small { color: var(--muted); font-size: .8rem; white-space: nowrap; }
+.sg-list li[aria-selected="true"], .sg-list li:hover { background: var(--soft); }
+.sg-list .sg-none { cursor: default; color: var(--muted); }
+.sg-cur { margin: 4px 0 0; font-weight: 400; color: var(--ink); }
+.sg-cur .btn-x { margin-left: 6px; }
+.sg-comp { margin: -8px 0 8px; }
+.sg-comp-h { margin: 0 0 4px; font-size: .86rem; color: var(--muted); }
+.sg-ctrack { height: 22px; border-left: 0; }
+.sg-ctrack .nj-seg:first-child { border-radius: 4px 0 0 4px; }
+.sg-pct { margin-left: 6px; font-weight: 400; color: var(--muted); font-size: .8rem; }
+.nj-tt { margin: 10px 0 4px; }
+.nj-diff th, .nj-diff td { font-size: .86rem; vertical-align: top; text-align: left; }
+@media (max-width: 420px) {
+  .nj-pages a { padding: 6px 8px; }
+  .nj-pages a b { font-size: .84rem; }
+  .nj-pages a small { font-size: .7rem; }
+}

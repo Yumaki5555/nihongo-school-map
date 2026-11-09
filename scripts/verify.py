@@ -307,6 +307,25 @@ ok("外国籍：元の表の食いちがい（2016年義務教育学校7県・20
 ok("外国籍：全ページのメニューで日本語指導の次にある", all(re.search(r'href="nihongo.html"[^>]*><span>日本語<wbr>指導</span></a><a href="foreign.html"[^>]*><span>外国籍の<wbr>子ども</span></a>', h) for h in navs.values()), "")
 ok("外国籍：3分でわかる・地図・ランキングからリンクがある", 'href="foreign.html"' in navs["guide"].split("<main")[-1] and "foreign.html" in (DOCS / "site.js").read_text("utf8") and "foreign.html" in (DOCS / "ranking.js").read_text("utf8"), "")
 
+# ---- 就学状況のページ（data/shugaku.json は fetch_shugaku.py で e-Stat の表・国の結果資料と照合済み。ここでは公開用の写しを点検）----
+sg = load(DOCS / "data/shugaku.json")
+SV, SY = sg["v"], sg["years"]
+_m = [c for c in SV if len(c) == 5]
+_p = [c for c in SV if len(c) == 2 and c != "00"]
+ok("就学状況：市区町村1,741・都道府県47・全国（名前の表と同じ）", len(_m) == 1741 and sorted(_p) == [f"{i:02d}" for i in range(1, 48)] and set(_m) == set(sg["munis"]) and "00" in SV, f"{len(_m)}/{len(_p)}")
+ok("就学状況：調査年は2019・2021〜2025年（2019年は全国だけ）", SY == [2019, 2021, 2022, 2023, 2024, 2025] and sg["y"]["2019"].get("nat_only") and all("2019" not in SV[c] for c in _m + _p), str(SY))
+_ys = [str(y) for y in SY if y >= 2021]
+ok("就学状況：都道府県＝市区町村の和、全国＝都道府県の和（全年・全区分、空欄は0として足す）", all(SV[p_][y] == [None if SV["00"][y][i] is None else sum((SV[m][y][i] or 0) for m in _m if m[:2] == p_) for i in range(8)] for p_ in _p for y in _ys) and all(SV["00"][y] == [None if SV["00"][y][i] is None else sum(SV[p_][y][i] for p_ in _p) for i in range(8)] for y in _ys), "")
+ok("就学状況：各行で①〜⑥の和＝計", all(sum(x or 0 for x in r[:6]) == r[6] for c in SV for r in SV[c].values()), "")
+_n25 = SV["00"]["2025"]
+ok("就学状況：2025年の全国が国の発表と一致（住民票177,726・①150,786・計177,497・不就学の可能性9,153）", _n25[7] == 177726 and _n25[0] == 150786 and _n25[6] == 177497 and _n25[2] + _n25[4] + (_n25[7] - _n25[6]) == 9153, str(_n25))
+ok("就学状況：全国の不就学の可能性（③＋⑤＋⑦）が国の年度別の表と一致（19,420・10,046・8,183・8,601・8,430・9,153）", [SV["00"][str(y)][2] + SV["00"][str(y)][4] + SV["00"][str(y)][7] - SV["00"][str(y)][6] for y in SY] == [19420, 10046, 8183, 8601, 8430, 9153], "")
+ok("就学状況：⑥その他は2023年から（2019・2021・2022年は null で0にしない）", all((SV[c][y][5] is None) == (int(y) < 2023) for c in SV for y in SV[c]), "")
+ok("就学状況：2025年の1人以上いる市区町村1,298・10人以上753（国の報道発表資料）", sum(SV[m]["2025"][7] >= 1 for m in _m) == 1298 and sum(SV[m]["2025"][7] >= 10 for m in _m) == 753, "")
+ok("就学状況：すべての年に出典がある（2021年からは e-Stat の表）", all(sg["y"][str(y)]["src"]["url"].startswith("https://www.e-stat.go.jp/" if y >= 2021 else "https://www.mext.go.jp/") for y in SY), "")
+ok("就学状況：2021年の仙台市の空欄（②〜⑤）を null のまま残している", SV["04100"]["2021"][1:5] == [None] * 4 and [b[0] for b in sg["y"]["2021"]["blanks"]] == ["04100"] * 4, "")
+ok("就学状況：外国籍の子どものページと互いに切り替えられ、メニューは「外国籍の子ども」を現在地にする", 'href="shugaku.html"' in (DOCS / "foreign.html").read_text("utf8") and 'href="foreign.html" aria-current="page"' in (DOCS / "shugaku.html").read_text("utf8"), "")
+
 size = sum(p.stat().st_size for p in DOCS.rglob("*") if p.is_file())
 ok("公開ファイル全体が10MB未満", size < 10_000_000, f"{size // 1024}KB")
 

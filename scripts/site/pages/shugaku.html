@@ -1,0 +1,156 @@
+<div class="wrap narrow" id="nj">
+  <nav class="nj-pages" aria-label="外国籍の子どものページ">
+    <a href="foreign.html"><b>学校に在籍する子ども</b><small>学校基本調査・都道府県別</small></a>
+    <a href="shugaku.html" aria-current="page"><b>住んでいる子どもの就学状況</b><small>就学状況等調査・市区町村別</small></a>
+  </nav>
+  <h1>外国籍の子どもの就学状況 — 市区町村別</h1>
+  <p class="lead">住民票がある小・中学校の年齢の外国籍の子どもについて、住んでいる市区町村の教育委員会が「学校に通っているか」を確かめた結果です。学校に通っていない子どもや、外国人学校に通う子どもも含みます。</p>
+  <details class="nj-howto" id="nj-howto"><summary>この統計の見方</summary>
+    <dl>
+      <dt>どんな数？</dt>
+      <dd>文部科学省「外国人の子供の就学状況等調査」で、全国1,741の市区町村の教育委員会が答えた人数です。対象は、住民票（住民基本台帳）に載っている学齢相当（小学校・中学校の年齢）の外国籍の子どもです。</dd>
+      <dt>①〜⑦の区分の意味は？</dt>
+      <dd>①日本の小・中学校など（義務教育諸学校）に在籍、②外国人学校に在籍、③不就学（学校に通っていない）、④転居・出国（予定を含む）、⑤就学状況を確認できず（教育委員会が確かめようとしたが、不在や連絡がつかず把握できなかった子ども）、⑥その他（①〜⑤のどれにも当たらない子ども。母国などの学校のオンライン授業を受けている など）。⑦は参考の数で、住民票上の人数と①〜⑥の計の差です。⑦には、教育委員会が確認の対象にしていないため就学状況が分からない子どもなどが含まれます。</dd>
+      <dt>「外国籍の子ども」のページの数とのちがいは？</dt>
+      <dd>
+        <div class="tablewrap"><table class="plain nj-diff">
+          <thead><tr><th scope="col"></th><th scope="col">このページ（就学状況等調査）</th><th scope="col"><a href="foreign.html">外国籍の子ども</a>（学校基本調査）</th></tr></thead>
+          <tbody>
+            <tr><th scope="row">数える元</th><td>住民票がある子ども（市区町村が答える）</td><td>学校に在籍している子ども（学校が答える）</td></tr>
+            <tr><th scope="row">学校に通っていない子ども</th><td>入る（③⑤など）</td><td>入らない</td></tr>
+            <tr><th scope="row">外国人学校の子ども</th><td>入る（②）</td><td>入らない</td></tr>
+            <tr><th scope="row">年齢・学校</th><td>小・中学校の年齢だけ</td><td>小学校〜高等学校など</td></tr>
+            <tr><th scope="row">どこの数か</th><td>住んでいる市区町村</td><td>学校のある都道府県</td></tr>
+          </tbody>
+        </table></div>
+        数え方の元がちがうので、2つの数を足したり引いたりはできません（たとえば「住民票の人数 − 学校にいる人数 ＝ 学校に通っていない子ども」にはなりません）。
+      </dd>
+      <dt>国の「不就学の可能性がある子ども」とは？</dt>
+      <dd>国は③不就学・⑤就学状況を確認できず・⑦住民票上の人数との差を合わせた数を「不就学の可能性があると考えられる外国人の子供の数」として発表しています。このページでは、全国の数だけを国の発表どおりに載せています（市区町村では⑦がマイナスになることがあるため、合わせた数は出していません）。</dd>
+    </dl>
+    <p class="fine">出典：文部科学省「外国人の子供の就学状況等調査」（各年度、e-Stat の市区町村別データ）。区分の説明は、文部科学省「<a href="https://www.mext.go.jp/b_menu/houdou/31/09/1421568_00006.htm" target="_blank" rel="noopener">外国人の子供の就学状況等調査（令和7年度）の結果について</a>」（2026年5月25日）によります。</p>
+  </details>
+  <p class="fine" id="nj-loading">読み込んでいます…</p>
+  <p class="cmp-msg" id="nj-error" role="alert" hidden>データを読み込めませんでした。通信の状態を確かめて、ページを開き直してください。</p>
+  <div id="nj-main" hidden>
+    <div class="rk-tools nj-tools sg-tools">
+      <div class="rk-field sg-find"><label for="sg-q">市区町村名で探す</label>
+        <div class="sg-box"><input type="search" id="sg-q" placeholder="例：浜松、新宿区、大泉町" autocomplete="off" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="sg-list"><ul class="sg-list" id="sg-list" role="listbox" aria-label="地域の候補" hidden></ul></div></div>
+      <label class="rk-field">都道府県
+        <select id="sg-pref"></select></label>
+      <label class="rk-field">市区町村
+        <select id="sg-muni"></select></label>
+    </div>
+    <nav class="nj-jump" id="nj-jump" aria-label="見たい内容へ移動">
+      <button type="button" data-go="trend">増減を見る</button><button type="button" data-go="bd">内訳を見る</button><button type="button" data-go="rank">地域の順位を見る</button>
+    </nav>
+    <section class="nj-kpi" id="area" aria-labelledby="nj-area-title">
+      <div class="nj-area-bar"><h2 id="nj-area-title" tabindex="-1">全国のデータ</h2><button type="button" class="btn-x" id="nj-reset" hidden>全国に戻す</button></div>
+      <p class="nj-kpi-when" id="nj-kpi-when"></p>
+      <ul class="nj-kpis nj-k4" id="nj-kpis"></ul>
+      <div class="sg-comp" id="sg-comp"></div>
+      <p class="nj-say" id="sg-say"></p>
+      <p class="fine" id="nj-kpi-note"></p>
+    </section>
+
+    <section class="nj-card" id="trend" aria-labelledby="nj-trend-title">
+      <div class="rk-head"><h2 id="nj-trend-title" tabindex="-1">人数の推移</h2><div class="rk-acts" id="nj-trend-acts"></div></div>
+      <div class="rk-tools">
+        <label class="rk-field">人数の区分
+          <select id="sg-s"></select></label>
+        <div class="rk-field sg-find"><label for="sg-q2">比べる地域（任意）</label>
+          <div class="sg-box"><input type="search" id="sg-q2" placeholder="地域名を入れて選ぶ" autocomplete="off" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="sg-list2"><ul class="sg-list" id="sg-list2" role="listbox" aria-label="比べる地域の候補" hidden></ul></div>
+          <p class="sg-cur" id="sg-cur2" hidden></p></div>
+      </div>
+      <p class="cmp-msg" id="nj-trend-msg" role="status" hidden></p>
+      <div class="nj-legend" id="nj-trend-legend"></div>
+      <div class="nj-chart" id="nj-trend-chart"></div>
+      <p class="fine" id="nj-trend-note"></p>
+      <p class="nj-say" id="nj-trend-say"></p>
+      <div class="nj-cmp" id="nj-cmp">
+        <h3 id="nj-cmp-title">どれくらい増えた？</h3>
+        <p class="nj-cmp-sub" id="nj-cmp-sub"></p>
+        <p class="nj-cmp-label" id="nj-cmp-label">2つの年を比較</p>
+        <div class="nj-quick" id="nj-quick" role="group" aria-labelledby="nj-cmp-label"></div>
+        <div class="rk-tools nj-pick">
+          <label class="rk-field nj-year">過去の年
+            <select id="nj-a"></select></label>
+          <label class="rk-field nj-year">新しい年
+            <select id="nj-b"></select></label>
+        </div>
+        <div class="nj-result" id="nj-result" aria-live="polite"></div>
+      </div>
+      <details class="nj-table"><summary>数値を表で見る</summary><div class="tablewrap" id="nj-trend-table"></div></details>
+    </section>
+
+    <section class="nj-card" id="breakdown" aria-labelledby="nj-bd-title">
+      <div class="rk-head"><h2 id="nj-bd-title" tabindex="-1">内訳と地域の順位</h2><div class="rk-acts" id="nj-bd-acts"></div></div>
+      <div class="rk-tools">
+        <div class="rk-field"><span id="nj-v-label">表示</span>
+          <div class="seg" id="nj-v" role="group" aria-labelledby="nj-v-label"><button type="button" data-v="bd">就学状況の内訳</button><button type="button" data-v="rank">地域の順位</button></div></div>
+        <label class="rk-field" id="sg-r-wrap">並べる区分
+          <select id="sg-r"></select></label>
+        <div class="rk-field" id="nj-mode-wrap"><span id="nj-mode-label">年</span>
+          <div class="seg" id="nj-mode" role="group" aria-labelledby="nj-mode-label"><button type="button" data-mode="one">1年を見る</button><button type="button" data-mode="two">2年を比べる</button></div></div>
+        <label class="rk-field nj-year" id="nj-y-wrap">調査年
+          <select id="nj-y"></select></label>
+        <label class="rk-field nj-year" id="nj-ya-wrap">比較する年（過去）
+          <select id="nj-ya"></select></label>
+        <label class="rk-field nj-year" id="nj-yb-wrap">比較する年（新しい年）
+          <select id="nj-yb"></select></label>
+        <div class="rk-field" id="nj-top-wrap"><span id="nj-top-label">表示件数</span>
+          <div class="seg" id="nj-top" role="group" aria-labelledby="nj-top-label"><button type="button" data-top="5">上位5</button><button type="button" data-top="10">上位10</button><button type="button" data-top="0">すべて</button></div></div>
+      </div>
+      <h3 class="nj-bd-head" id="nj-bd-head"></h3>
+      <p class="cmp-msg" id="nj-bd-msg" role="status" hidden></p>
+      <div class="nj-legend" id="nj-bd-legend"></div>
+      <div class="nj-bars" id="nj-bars"></div>
+      <p class="nj-say" id="nj-bd-say"></p>
+      <p class="fine" id="nj-bd-note"></p>
+      <details class="nj-table"><summary>数値を表で見る</summary><div class="tablewrap" id="nj-bd-table"></div></details>
+    </section>
+
+    <section class="nj-notes" aria-labelledby="nj-notes-title">
+      <h2 id="nj-notes-title">この数字を見るときの注意</h2>
+      <ul class="nj-notes-list">
+        <li>住民票をもとにした、住んでいる市区町村ごとの数です。学校で数える「<a href="foreign.html">外国籍の子ども</a>」の数とは足したり引いたりできません。</li>
+        <li>市区町村の教育委員会が把握している就学状況です。国立・私立の学校、外国人学校、ほかの市区町村の学校に通う子どもは、実際には在籍していても教育委員会が把握していない場合があります（国の説明）。</li>
+        <li>人数の多さや割合だけで、地域の取り組みや支援が足りているかどうかは判断できません。</li>
+      </ul>
+      <details class="more"><summary>くわしい注意と調査年ごとのちがい</summary>
+        <ul>
+          <li>対象は生年月日で数えた学齢相当の子どもですが、下の学年で受け入れているときなど、実際の在籍状況で答えている場合があります（国の説明）。</li>
+          <li>調査は2019年度（令和元年度）に始まり、2020年度はありません。e-Stat の市区町村別データは2021年度（令和3年度）からなので、2019年度は全国の数だけを、国の結果資料の年度別の表から載せています。</li>
+          <li>⑥その他は2023年度（令和5年度）からの区分です。2021・2022年度は区分がありません（0人ではありません）。</li>
+          <li>2021年度の仙台市は、②〜⑤の欄が空欄（回答なし）です。この年の宮城県と全国の②〜⑤には、仙台市の分が入っていません。</li>
+          <li>2019年度は⑦（住民票上の人数との差）が10,132人と大きく、2021年度からとは確かめ方の進み具合がちがいます。年をまたいで比べるときは注意してください。</li>
+          <li>組合で教育委員会を置いている町村（岐阜県の岐南町・笠松町、京都府の笠置町・和束町・南山城村）も、町村ごとの数です。</li>
+          <li>都道府県と全国の数は、市区町村の数を足したものです。全国は、どの年も国の結果資料の表と一致することを確かめています。</li>
+          <li id="sg-asof"></li>
+        </ul>
+        <div class="tablewrap" id="nj-src-table"></div>
+      </details>
+    </section>
+  </div>
+</div>
+<dialog id="img-dialog" aria-labelledby="img-title">
+  <h2 id="img-title">画像を保存</h2>
+  <p class="fine" id="img-what"></p>
+  <div class="seg" id="img-page" role="group" aria-label="画像に入れる範囲" hidden></div>
+  <p class="fine" id="img-status" aria-live="polite"></p>
+  <img id="img-preview" class="img-portrait" alt="保存する画像のプレビュー" hidden>
+  <div class="img-acts"><a class="btn primary" id="img-save" hidden>PNGを保存</a><button type="button" class="btn" id="img-close">閉じる</button></div>
+  <p class="img-saved" id="img-saved" role="status" hidden>保存を始めました。保存先（「ダウンロード」や写真アプリなど）を確かめてから、下の手順でXに投稿できます。</p>
+  <section class="img-next" aria-labelledby="img-next-title">
+    <h3 id="img-next-title">保存した画像をXに投稿するには</h3>
+    <p class="img-warn"><b>画像は自動では添付されません。保存してからXで添付してください。</b></p>
+    <ol>
+      <li>「PNGを保存」で画像を保存する（スマホではプレビューを長押しして保存もできます）</li>
+      <li>「Xの投稿画面を開く」を押す（下の投稿文が入った画面が開きます）</li>
+      <li>Xの投稿画面の画像ボタンから、保存した画像を選ぶ</li>
+    </ol>
+    <p class="img-x-text" id="img-x-text"></p>
+    <p><a class="btn" id="img-x" target="_blank" rel="noopener">Xの投稿画面を開く</a></p>
+  </section>
+  <p class="fine">画像はこの端末の中で作られ、どこにも送信されません。数字は画面と同じデータから作っています。</p>
+</dialog>
