@@ -866,14 +866,17 @@ window.MapImage = (function () {
     (spec.facts || []).forEach((t) => wrapJa(ctx, t, cw).forEach((l) => facts.push(l)));
     const barH = spec.bar ? 34 + 12 + 54 + g + 6 : 0;
     const factH = facts.length ? facts.length * 40 + 10 : 0;
-    const th = Math.round(Math.max(100, Math.min(190, (bottom - top - 6 - barH - factH - g * nRows) / nRows)));
+    // 参考の小さなカード（例：地域にある学校の数）。見出し＋1段
+    const eth = 130, extraH = spec.extra ? 44 + eth + 8 : 0;
+    const th = Math.round(Math.max(100, Math.min(190, (bottom - top - 6 - barH - factH - extraH - g * nRows) / nRows)));
     const pad = Math.round(th * 0.12) + 6;
+    const th0Main = th;
     const tw = (cw - g * (cols - 1)) / cols;
     // 文字の大きさは、同じ段のカードでそろえる（いちばん長い名前・数字が入る大きさ）
     const fit = (texts, maxW, px, min, bold) => texts.reduce((p, t) => Math.min(p, fitFont(ctx, t, maxW, px, min, bold)), px);
-    const sizes = (list, w) => {
+    const sizes = (list, w, th0 = th) => {
       const inner = w - pad * 2 - (list.some((t) => t.main) ? 8 : 0);
-      const lp0 = Math.round(Math.min(30, th * 0.19));
+      const lp0 = Math.round(Math.min(30, th0 * 0.19));
       const lp = fit(list.map((t) => t.label), inner - (list.some((t) => t.color) ? lp0 * 0.8 + 10 : 0), lp0, 18, true);
       const width = (t, vp) => {
         let u = 0;
@@ -881,11 +884,11 @@ window.MapImage = (function () {
         ctx.font = font(vp, true);
         return ctx.measureText(t.value).width + u;
       };
-      let vp = Math.round(Math.min(68, th * 0.38));
+      let vp = Math.round(Math.min(68, th0 * 0.38));
       while (vp > 28 && Math.max(...list.map((t) => width(t, vp))) > inner) vp--;
-      return { lp, vp, sp: Math.round(Math.min(25, th * 0.15)), inner };
+      return { lp, vp, sp: Math.round(Math.min(25, th0 * 0.15)), inner };
     };
-    const drawTile = (t, x, y, w, S) => {
+    const drawTile = (t, x, y, w, S, th = th0Main) => {
       rrect(ctx, x, y, w, th, 12); ctx.fillStyle = "#FFFFFF"; ctx.fill();
       ctx.strokeStyle = RC.line; ctx.lineWidth = 2; ctx.stroke();
       if (t.main) { ctx.save(); rrect(ctx, x, y, w, th, 12); ctx.clip(); ctx.fillStyle = C.brand; ctx.fillRect(x, y, 8, th); ctx.restore(); }
@@ -900,8 +903,8 @@ window.MapImage = (function () {
       if (t.sub) { fitFont(ctx, t.sub, S.inner, S.sp, 16); ctx.fillStyle = RC.muted; ctx.fillText(t.sub, lx, y + th - pad * 0.62); }
     };
     // 余った高さは、かたまりの間に少しずつ分ける（下にだけ大きな空きを残さない）
-    const blocks = (main.length ? 1 : 0) + 1 + (spec.bar ? 1 : 0) + (facts.length ? 1 : 0);
-    const add = Math.min(44, Math.max(0, (bottom - top - 6 - nRows * (th + g) - barH - factH) / blocks));
+    const blocks = (main.length ? 1 : 0) + 1 + (spec.bar ? 1 : 0) + (facts.length ? 1 : 0) + (spec.extra ? 1 : 0);
+    const add = Math.min(44, Math.max(0, (bottom - top - 6 - nRows * (th + g) - barH - factH - extraH) / blocks));
     let y = top + 6;
     if (main.length) { const S = sizes(main, cw); main.forEach((t) => { drawTile(t, RM, y, cw, S); y += th + g; }); y += add; }
     const S = sizes(rest, tw);
@@ -931,6 +934,14 @@ window.MapImage = (function () {
     if (facts.length) {
       ctx.fillStyle = RC.ink; ctx.font = font(28, true);
       facts.forEach((l, i) => ctx.fillText(l, RM, y + 30 + i * 40));
+      y += factH + add;
+    }
+    if (spec.extra) {
+      ctx.fillStyle = RC.ink; fitFont(ctx, spec.extra.caption, cw, 28, 18, true);
+      ctx.fillText(spec.extra.caption, RM, y + 30);
+      y += 44;
+      const ew = (cw - g * (cols - 1)) / cols, ES = sizes(spec.extra.tiles, ew, eth);
+      spec.extra.tiles.forEach((t, i) => drawTile(t, RM + (i % cols) * (ew + g), y, ew, ES, eth));
     }
     return toPng(canvas);
   }

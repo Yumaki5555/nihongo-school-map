@@ -398,7 +398,15 @@
     const kn = knownShort(knownFor([y], [c], null));
     if (kn) foot.push(kn);
     if (tot > 0 && tot < 30) foot.push("人数が少ないため、割合は1人のちがいで大きく変わります。");
+    // 参考：地域にある学校の数（学校基本調査。人数とは別の調査で、子どもが通う学校の数ではない）
+    const sch = schoolInfo(c);
+    const extra = sch ? {
+      caption: `参考：${areaName(c)}にある学校の数（${sch.y}年）`,
+      tiles: ["小学校", "中学校", "義務教育学校（小・中一貫）"].map((label, i) => ({ label, value: fmt(sch.now[i]), unit: "校", sub: `${sch.y0}年から${schoolMove(sch.now[i], sch.old[i])}` })),
+    } : null;
+    if (sch) foot.push(`学校の数：文部科学省「学校基本調査」（${sch.y0}・${sch.y}年度。e-Statの市町村別学校数）。国立・公立・私立の計で、学校がある市区町村で数えた数。人数とは別の調査です。${sch.short.join("")}`);
     return {
+      extra,
       kind: "tiles", siteName: SITE_NAME, siteUrl: document.body.dataset.site,
       title: "外国籍の子どもの就学状況",
       subtitle: [`${areaName(c)}・${yLabel(y)}${asOf(y)}`],
@@ -770,24 +778,32 @@
   }
 
   // ---- 学校の数（学校基本調査の市町村別学校数。参考として出す。就学状況の人数とは別の調査） ----
-  function renderSchools() {
-    const box = $("sg-sch"), c = state.area, row = G && ready ? G.v[c] : null;
-    if (!row) { box.hidden = true; return; }
+  // 地域の学校の数（最新の年と最初の年）と注記。ページの欄と画像で同じものを使う。数がなければ null
+  const schoolMove = (now, old) => { const d = now - old; return d ? `${fmt(Math.abs(d))}校${d > 0 ? "増" : "減"}` : "変わらず"; };
+  function schoolInfo(c) {
+    const row = G && ready ? G.v[c] : null;
+    if (!row) return null;
     const ys = G.years.slice().sort((a, b) => a - b), y = ys[ys.length - 1], y0 = ys[0], now = row[String(y)], old = row[String(y0)];
-    const LABEL = ["小学校", "中学校", "義務教育学校<small>（小・中一貫）</small>"];
-    const items = G.kinds.map((k, i) => {
-      const d = now[i] - old[i];
-      return `<li><span>${LABEL[i]}</span><b>${fmt(now[i])}<small>校</small></b><small>${y0}年の${fmt(old[i])}校から${d ? `${fmt(Math.abs(d))}校${d > 0 ? "増" : "減"}` : "変わらず"}</small></li>`;
-    }).join("");
-    const notes = [];
-    if ((G.wards || []).includes(c)) notes.push("政令指定都市なので、区ごとの数を足しています。");
+    const notes = [], short = []; // short：画像の注記用の短い文
+    if ((G.wards || []).includes(c)) { notes.push("政令指定都市なので、区ごとの数を足しています。"); short.push("政令指定都市は区の数の和。"); }
     Object.keys(G.outside || {}).forEach((p) => {
       const o = G.outside[p], v = o[String(y)] || [0, 0, 0], t = G.kinds.map((k, i) => (v[i] ? `${k}${fmt(v[i])}校` : "")).filter(Boolean).join("・");
       if (!t) return;
       const city = o.name.replace(/外$/, ""), inCity = isMuni(c) && c.slice(0, 2) === p && N.munis[c][1] === city;
       if (c === "00" || c === p) notes.push(`${c === "00" ? "全国と" : ""}${N.prefs[p]}の数には、e-Statの表で「${o.name}」とされている市立の学校（${t}）を含みます。どの市町村にあるかが表にないため、市町村の数には入れていません。`);
+      if (c === "00" || c === p) short.push(`${c === "00" ? "全国・" : ""}${N.prefs[p]}の数には、所在地が表にない${city}立の学校（${t}）を含みます。`);
       else if (inCity) notes.push(`e-Statの表で「${o.name}」とされている市立の学校（${t}）は、どの市町村にあるかが表にないため、${city}の数に入れていません（${N.prefs[p]}の数には含みます）。`);
+      if (inCity) short.push(`所在地が表にない市立の学校（${t}）は含みません。`);
     });
+    return { ys, y, y0, now, old, notes, short };
+  }
+
+  function renderSchools() {
+    const box = $("sg-sch"), c = state.area, S = schoolInfo(c);
+    if (!S) { box.hidden = true; return; }
+    const { ys, y, y0, now, old, notes } = S;
+    const LABEL = ["小学校", "中学校", "義務教育学校<small>（小・中一貫）</small>"];
+    const items = G.kinds.map((k, i) => `<li><span>${LABEL[i]}</span><b>${fmt(now[i])}<small>校</small></b><small>${y0}年の${fmt(old[i])}校から${schoolMove(now[i], old[i])}</small></li>`).join("");
     box.innerHTML = `<h3 class="sg-sch-h">${esc(areaName(c))}にある学校の数<small>（参考・${y}年）</small></h3><ul class="nj-kpis sg-sch-list">${items}</ul>
       <p class="fine">${esc(jpDate(G.y[y].as_of))}現在（${esc(G.y[y].fy)}）。文部科学省「学校基本調査」の市町村別の学校数で、国立・公立・私立の計（分校を含む）です。学校がある市区町村で数えています。${esc(notes.join(""))}上の外国籍の子どもの人数とは別の調査の数で、子どもが通っている学校の数ではありません。</p>`;
     box.hidden = false;
