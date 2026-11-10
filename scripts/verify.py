@@ -38,17 +38,43 @@ ok("公開データの項目は決めたものだけ", all(set(s) <= ALLOWED_PUB
 _private = ROOT.parent / "非公開ツール" / "banned_words.json"
 PRIVATE = load(_private) if _private.exists() else {"words": [], "folders": []}
 BANNED = PRIVATE["words"]
+
+# 例外：出典ページの「学校ごとの数字を調べるには」（id="other-sites"）だけは、ほかの団体のサイトへのリンクを置いてよい。
+# 数字は写さない（日付以外の数字があれば不合格）、リンク先は下の3つだけ、置き場所は出典ページだけ。
+OTHER_SITES = re.compile(r'<section id="other-sites">.*?</section>', re.S)
+OTHER_SITES_URLS = {
+    "https://www.nisshinkyo.org/search/",
+    "https://up-j.shigaku.go.jp/",
+    "https://portraits.niad.ac.jp/",
+}
+OTHER_SITES_FILES = {"docs/sources.html", "scripts/site/pages/sources.html"}
+
 hits = Counter()
+other_bad = []
 scan = [p for d in ("docs", "data", "config", "scripts") for p in (ROOT / d).rglob("*") if p.is_file() and p.suffix in (".json", ".js", ".html", ".css", ".py", ".md", ".csv", ".txt", ".yml")]
 scan += [ROOT / "README.md", ROOT / ".gitignore"]
 for p in scan:
     if p.name == "verify.py" or "vendor" in p.parts:
         continue
     tx = p.read_text("utf8", errors="ignore")
+    rel = p.relative_to(ROOT).as_posix()
+    blocks = OTHER_SITES.findall(tx)
+    if blocks:
+        if rel not in OTHER_SITES_FILES or len(blocks) != 1:
+            other_bad.append(f"{rel}:場所か数")
+        for b in blocks:
+            urls = set(re.findall(r'href="([^"]+)"', b))
+            if urls != OTHER_SITES_URLS:
+                other_bad.append(f"{rel}:リンク先 {sorted(urls ^ OTHER_SITES_URLS)}")
+            if re.search(r"\d", re.sub(r"\d{4}-\d{2}-\d{2}", "", re.sub(r'href="[^"]+"', "", b))):
+                other_bad.append(f"{rel}:数字あり")
+        tx = OTHER_SITES.sub("", tx)
     for w in BANNED:
         if w in tx:
-            hits[f"{p.relative_to(ROOT).as_posix()}:{w}"] += tx.count(w)
+            hits[f"{rel}:{w}"] += tx.count(w)
 ok("公開しない資料・項目の語が残っていない", not hits and (BANNED or not _private.parent.exists()), str(dict(list(hits.items())[:8])))
+_src = (DOCS / "sources.html").read_text("utf8")
+ok("ほかの団体へのリンク集は出典ページの1か所だけで、数字を写していない", not other_bad and len(OTHER_SITES.findall(_src)) == 1, str(other_bad[:5]))
 
 PERSONAL = re.compile(r"\b0\d{1,4}-\d{1,4}-\d{3,4}\b|[\w.+-]+@[\w-]+\.[\w.-]+")
 tx = (DOCS / "data/schools.json").read_text("utf8")
