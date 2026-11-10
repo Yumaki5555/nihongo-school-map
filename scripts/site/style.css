@@ -87,7 +87,7 @@ summary.ctl-title { cursor: pointer; display: list-item; min-height: 28px; }
 /* 地図と一覧 */
 .layout { display: grid; gap: 12px; padding: 0 16px 20px; grid-template-columns: minmax(0, 1fr); }
 .mapwrap { position: relative; }
-#map { height: 62vh; min-height: 360px; border: 1px solid var(--line); border-radius: 10px; background: #F4F2EC; }
+#map { height: 62vh; min-height: 360px; border: 1px solid var(--line); border-radius: 10px; background: #BDC4C9; } /* 灰色にした背景の地図の海の色（地図の画像のすき間が白い線に見えないように） */
 .map-actions { position: absolute; top: 10px; right: 10px; z-index: 500; display: flex; gap: 6px; }
 .act { display: inline-flex; align-items: center; gap: 5px; min-height: 40px; padding: 4px 10px; background: var(--white); border: 1px solid var(--brand); border-radius: 8px; color: var(--brand-dark); font: inherit; font-size: .85rem; font-weight: 600; text-decoration: none; cursor: pointer; box-shadow: 0 1px 3px rgba(0, 0, 0, .2); }
 .act:hover { background: var(--soft); }
@@ -102,13 +102,21 @@ summary.ctl-title { cursor: pointer; display: list-item; min-height: 28px; }
 .lg-note { margin: 2px 0 6px; color: var(--muted); }
 .lg-points { display: flex; flex-wrap: wrap; gap: 2px 10px; }
 .lg-points span { display: inline-flex; align-items: center; gap: 3px; }
-.lg-cl { display: inline-flex; align-items: center; justify-content: center; min-width: 30px; height: 18px; padding: 0 3px; border-radius: 9px; background: #fff; color: var(--ink); font-size: .64rem; font-weight: 700; font-style: normal; border: 1.5px solid var(--muted); }
+.lg-sizes { margin-top: 2px; }
+.lg-sizes span { white-space: normal; }
+.lg-sz { gap: 4px !important; flex: none; }
+.lg-sz i { display: inline-block; border-radius: 50%; background: #6b7280; box-shadow: 0 0 0 1px #fff, 0 0 0 2px rgba(0, 0, 0, .12); }
 
-/* 地図の点 */
-.pt { background: none; border: 0; display: flex; align-items: center; justify-content: center; }
-.pt svg { filter: drop-shadow(0 0 1px rgba(0, 0, 0, .55)); }
-.pt-prov { opacity: .72; }
-.cl { display: flex; align-items: center; justify-content: center; border-radius: 13px; background: rgba(255, 255, 255, .95); color: var(--ink); font-weight: 700; font-size: .74rem; border: 2px solid var(--muted); box-sizing: border-box; white-space: nowrap; cursor: pointer; }
+/* 地図の点（キャンバスに描く。押す・重ねるは site.js が受け取る） */
+.dotlayer { pointer-events: none; }
+.leaflet-container.ondot, .leaflet-container.ondot .leaflet-interactive { cursor: pointer; }
+.leaflet-container.ondot .pref-tip { display: none; }
+.dot-tip .ctip { font-size: .82rem; line-height: 1.45; }
+.dot-tip .ctip b { display: block; }
+.dot-tip .ctip small { display: block; color: var(--muted); }
+.dot-tip .shape { vertical-align: -2px; }
+.spot-head { margin: 0 14px 6px 0; font-weight: 700; }
+.leaflet-popup-content .detail + .detail { border-top: 1px solid var(--line-soft); margin-top: 10px; padding-top: 8px; }
 .img-ref { margin: 6px 0 0; align-items: flex-start; }
 .img-ref span { white-space: normal; min-width: 0; }
 .img-ref[hidden] { display: none; }

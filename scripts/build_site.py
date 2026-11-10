@@ -180,8 +180,8 @@ def build_pages(stats):
         html = tpl.replace("[[title]]", title).replace("[[desc]]", desc).replace("[[pid]]", pid).replace("[[nav]]", nav).replace("[[body]]", body)
         html = html.replace("[[page_url]]", CFG["site_url"] + ("" if pid == "index" else f"{pid}.html")).replace("[[site_name]]", CFG["site_name"]).replace("[[site_url]]", CFG["site_url"])
         html = html.replace("[[css]]", hashes["style.css"]).replace("[[js]]", hashes["site.js"])
-        map_head = '<link rel="stylesheet" href="vendor/leaflet.css"><link rel="stylesheet" href="vendor/markercluster-MarkerCluster.css">' if with_map else ""
-        map_foot = f'<script src="vendor/leaflet.js"></script><script src="vendor/markercluster-leaflet.markercluster.js"></script><script src="map-image.js?v={hashes["map-image.js"]}"></script><script src="site.js?v={hashes["site.js"]}"></script>' if with_map else ""
+        map_head = '<link rel="stylesheet" href="vendor/leaflet.css">' if with_map else ""
+        map_foot = f'<script src="vendor/leaflet.js"></script><script src="map-image.js?v={hashes["map-image.js"]}"></script><script src="site.js?v={hashes["site.js"]}"></script>' if with_map else ""
         if pid == "ranking":
             map_foot = f'<script src="map-image.js?v={hashes["map-image.js"]}"></script><script src="ranking.js?v={hashes["ranking.js"]}"></script>'
         if pid == "compare":

@@ -184,8 +184,11 @@ ok("画像が自動で添付されないと案内する", "画像は自動では
 ok("地域の投稿文はXの文字数に収める", "X_LIMIT = 280" in sj and "fitsX" in sj, "")
 
 # ---- 地図・X画像の見やすさ（2026-11-08 視認性改善） ----
-ok("全国表示は数字の丸を使わず、都道府県ごとの校数を色で表す", "色が濃いほど学校数が多い" in sj and "renderBubbles" not in sj and "cl-pref" not in sj, "")
-ok("まとめた印は「○校」と単位を付ける", "${fmt(n)}校</span>" in sj, "")
+# 2026-11-10 ユーザー指示：全国を見たときも色分けでなく民泊マップのような点に。色・点の大きさは民泊マップに合わせる
+ok("全国表示も学校の点で表す（都道府県の校数の色分け・数字の丸・まとめ表示なし）", "NATION_BELOW" not in sj and "showCount" not in sj and "markerClusterGroup" not in sj and "renderBubbles" not in sj and "cl-pref" not in sj, "")
+ok("点の大きさは民泊マップと同じ（1校10/13/14/15/17px、同じ位置の校数で2pxずつ）", "z <= 9 ? 10 : z <= 11 ? 13 : z <= 13 ? 14 : z <= 15 ? 15 : 17" in sj and "tier(n) * 2" in sj, "")
+ok("背景は民泊マップと同じ淡いグレー（OpenStreetMap Japan を灰色に）", "tile.openstreetmap.jp/styles/maptiler-basic-ja" in sj and "grayscale(.8) contrast(.72) brightness(1.15)" in sj, "")
+ok("地図のページでまとめ表示の部品を読み込まない", all("markercluster" not in (DOCS / p).read_text(encoding="utf-8") for p in ["index.html", "map.html"] if (DOCS / p).exists()), "")
 ok("保存画像に数字入りのまとめた丸がない", "drawBubble" not in img and "drawPill" not in img and "clusterPts" not in img, "")
 gidx = load(DOCS / "data/geo/index.json")
 geo_cities, geo_name, geo_poly = set(), {}, {}

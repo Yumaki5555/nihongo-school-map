@@ -2,10 +2,11 @@
 (function () {
   "use strict";
 
+  // 点はすべて丸（民泊マップと同じ）。種類は色で見分ける。画像（map-image.js）も shape を見て丸で描く
   const GROUPS = {
     jp: { label: "日本語学校", shape: "circle", color: "#2563A8" },
-    higher: { label: "大学・短大・高専", shape: "square", color: "#0E8A6A" },
-    senmon: { label: "専門学校", shape: "diamond", color: "#8A52B4" },
+    higher: { label: "大学・短大・高専", shape: "circle", color: "#0E8A6A" },
+    senmon: { label: "専門学校", shape: "circle", color: "#8A52B4" },
   };
   const TYPES = {
     jp: { label: "日本語学校", group: "jp" },
@@ -20,7 +21,6 @@
   const NODATA = "#D9D6CE";
   const PAGE = 50;
   const HOME = [[24.0, 122.6], [45.7, 146.0]]; // 沖縄まで入る範囲
-  const NATION_BELOW = 6.5; // これより引いた全国表示では、学校の点を出さず都道府県ごとの校数を色で表す
   // 地図に出すもの：学校の数と場所／人数の分布（国の統計）。2つは別の情報なので同時には出さない
   const VIEWS = ["place", "stats"];
   const VEIL = 0.38; // 地域を選んでいる間、ほかの都道府県にかける白い膜の濃さ
@@ -35,18 +35,15 @@
     .replace(/(\d)\s*丁目/g, "$1-").replace(/(\d)\s*番地?/g, "$1-").replace(/(\d)\s*号/g, "$1")
     .replace(/(\d)[‐‑‒–—―−ーｰ\-の](?=\d)/g, "$1-").replace(/-+/g, "-");
 
-  // rough＝町名の代表点。白抜きで表す
+  // 凡例・一覧の小さな点（地図の点と同じ見た目）。rough＝町名の代表点。真ん中を白くする
   function shape(group, size, rough) {
     const g = GROUPS[group];
-    const common = rough ? `fill="#fff" stroke="${g.color}" stroke-width="3"` : `fill="${g.color}" stroke="#fff" stroke-width="2"`;
-    const body = g.shape === "circle" ? `<circle cx="11" cy="11" r="7" ${common}/>`
-      : g.shape === "square" ? `<rect x="4.5" y="4.5" width="13" height="13" rx="1" ${common}/>`
-      : `<path d="M11 2.5l8.5 8.5-8.5 8.5L2.5 11z" ${common}/>`;
+    const body = `<circle cx="11" cy="11" r="9" fill="${g.color}" stroke="#fff" stroke-width="2"/>` + (rough ? '<circle cx="11" cy="11" r="3.6" fill="#fff"/>' : "");
     return `<svg class="shape" viewBox="0 0 22 22" width="${size}" height="${size}" aria-hidden="true">${body}</svg>`;
   }
 
   const state = { pref: "", city: "", groups: new Set(Object.keys(GROUPS)), view: "place", layer: "", variant: "all", q: "", kind: "", limit: PAGE };
-  let startSchool = "", D = null, S = null, GEO = null, byId = {}, prefName = {}, map = null, cluster = null, prefLayer = null, markers = {};
+  let startSchool = "", D = null, S = null, GEO = null, byId = {}, prefName = {}, map = null, dots = null, prefLayer = null;
   const places = [];
   let imageUrl = "";
 
@@ -306,15 +303,19 @@
   function buildMap() {
     map = L.map("map", { minZoom: 3.5, maxZoom: 18, zoomSnap: 0.25 });
     map.attributionControl.setPrefix(false);
-    L.tileLayer("https://cyberjapandata.gsi.go.jp/xyz/pale/{z}/{x}/{y}.png", {
-      minNativeZoom: 5, maxNativeZoom: 18, opacity: 0.75,
-      attribution: '<a href="https://maps.gsi.go.jp/development/ichiran.html" target="_blank" rel="noopener">地理院タイル</a>／<a href="sources.html">境界・位置：国土交通省の資料を加工</a>',
-    }).addTo(map);
+    // 背景は民泊マップと同じ「淡いグレー」：OpenStreetMap Japan の日本語の地図を、色を抜いて薄くしたもの
+    const base = L.tileLayer("https://tile.openstreetmap.jp/styles/maptiler-basic-ja/{z}/{x}/{y}{r}.png", {
+      maxNativeZoom: 19,
+      attribution: '<a href="https://openstreetmap.jp/" target="_blank" rel="noopener">OpenStreetMap Japan</a> &copy; <a href="https://www.openmaptiles.org/" target="_blank" rel="noopener">OpenMapTiles</a> &copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap contributors</a>／<a href="sources.html">境界・位置：国土交通省の資料を加工</a>',
+    });
+    // 地図の範囲が決まってから背景の部品ができるので、できたときに色を抜く
+    base.once("add", () => { base.getContainer().style.filter = "grayscale(.8) contrast(.72) brightness(1.15)"; });
+    base.addTo(map);
     map.createPane("prefs");
     map.getPane("prefs").style.zIndex = 350;
-    map.createPane("lines");
-    map.getPane("lines").style.zIndex = 450;
-    map.getPane("lines").style.pointerEvents = "none";
+    map.createPane("dots");
+    map.getPane("dots").style.zIndex = 460;
+    map.getPane("dots").style.pointerEvents = "none";
     prefLayer = L.geoJSON(GEO, {
       pane: "prefs",
       style: prefStyle,
@@ -326,43 +327,239 @@
       },
     }).addTo(map);
 
-    // ほぼ同じ場所に重なる学校だけをまとめる。押すと拡大し、いちばん拡大しても重なるときは広げて見せる
-    cluster = L.markerClusterGroup({
-      chunkedLoading: true,
-      showCoverageOnHover: false,
-      spiderfyOnMaxZoom: true,
-      zoomToBoundsOnClick: true,
-      maxClusterRadius: clusterRadius,
-      iconCreateFunction: (c) => clusterIcon(c.getChildCount()),
-    });
-    const popWidth = Math.min(320, Math.max(200, map.getSize().x - 64)); // スマホで地図からはみ出さない幅
-    const icons = {};
-    D.schools.forEach((s) => {
-      if (s.la == null) return;
-      const key = s.g + (s.lv === 0 ? "-rough" : "") + (s.st ? "-prov" : "");
-      if (!icons[key]) icons[key] = L.divIcon({ className: "pt" + (s.st ? " pt-prov" : ""), html: shape(s.g, 22, s.lv === 0), iconSize: [26, 26], iconAnchor: [13, 13], popupAnchor: [0, -8] });
-      const m = L.marker([s.la, s.ln], { icon: icons[key], title: s.n, alt: s.n, riseOnHover: true });
-      m.bindPopup(() => detailHtml(s), { maxWidth: popWidth, minWidth: Math.min(220, popWidth), autoPanPaddingTopLeft: [12, 84], autoPanPaddingBottomRight: [12, 12] });
-      markers[s.i] = m;
-    });
+    buildDots();
     map.fitBounds(HOME);
-    map.on("zoomend", () => {
-      const was = nationView.last;
-      syncFill();
-      syncMode();
-      if (was !== nationView()) { renderLegend(); syncBadge(indicator(), variantOf(indicator(), state.variant)); }
-    });
+    map.on("zoomend", syncFill);
     // 概要や凡例の高さが変わって地図の大きさが変わったとき
     if (window.ResizeObserver) new ResizeObserver(() => map.invalidateSize({ pan: false })).observe($("map"));
   }
 
-  // まとめる距離（画面上のピクセル）。市区町村が見える拡大では、ほぼ同じ位置の学校だけをまとめる
-  function clusterRadius(z) { return z < 10 ? 18 : z < 12 ? 10 : z < 14 ? 5 : 3; }
+  // ---- 学校の点（民泊マップと同じ描き方・大きさ） ----
+  // 全国を見ていても、近くの学校をまとめず全校を点で描く。完全に同じ位置の学校だけを点1つにし、点の大きさで校数を表す
+  // 点の直径(px)：1校の点は 県全体が見える広さ10／市が見える広さ(ズーム10〜11)13／12〜13で14／14〜15で15／16以上17。
+  // 同じ位置の学校が多いほど 2px ずつ大きく（1校・2〜3校・4〜6校・7〜10校・11校以上）
+  const tier = (n) => n <= 1 ? 0 : n <= 3 ? 1 : n <= 6 ? 2 : n <= 10 ? 3 : 4;
+  const dotBase = (z) => z <= 9 ? 10 : z <= 11 ? 13 : z <= 13 ? 14 : z <= 15 ? 15 : 17;
+  const dotSize = (n, z) => dotBase(z) + tier(n) * 2;
+  const dotLine = (d) => d > 8 ? 1.5 : 1; // 白い輪郭の太さ
+  const DOT_SIZES = [[13, "1校"], [15, "2〜3校"], [17, "4〜6校"], [19, "7校以上"]]; // 凡例（市が見える広さの大きさ）
 
-  // まとめた印：「3校」と単位を付け、市区町村の校数と取り違えないようにする
-  function clusterIcon(n) {
-    const w = n < 10 ? 40 : n < 100 ? 48 : 56;
-    return L.divIcon({ html: `<span>${fmt(n)}校</span>`, className: "cl", iconSize: [w, 26] });
+  // 点を1つ描く。comp: [[種類, 校数], …]（多い順）。種類が混ざる点は校数の割合で塗り分け、
+  // 町名の代表点は真ん中を白く、開校状況などを確認中の学校だけの点は少し薄く。sel: 選んだ点（黒い縁取り）
+  function paintDot(g, x, y, d, w, comp, rough, prov, sel) {
+    const ro = d / 2 + w / 2, ri = d / 2 - w / 2;
+    if (sel) { g.beginPath(); g.arc(x, y, ro + 2.5, 0, Math.PI * 2); g.fillStyle = "#1f2a24"; g.fill(); }
+    g.beginPath(); g.arc(x, y, ro, 0, Math.PI * 2); g.fillStyle = "#fff"; g.fill();
+    g.globalAlpha = prov ? 0.72 : 1;
+    if (comp.length === 1) { g.beginPath(); g.arc(x, y, ri, 0, Math.PI * 2); g.fillStyle = GROUPS[comp[0][0]].color; g.fill(); }
+    else {
+      const n = comp.reduce((t, c) => t + c[1], 0);
+      let a = -Math.PI / 2;
+      comp.forEach(([k, v]) => { const b = a + v / n * Math.PI * 2; g.beginPath(); g.moveTo(x, y); g.arc(x, y, ri, a, b); g.closePath(); g.fillStyle = GROUPS[k].color; g.fill(); a = b; });
+    }
+    g.globalAlpha = 1;
+    if (rough) { g.beginPath(); g.arc(x, y, ri * 0.45, 0, Math.PI * 2); g.fillStyle = "#fff"; g.fill(); }
+  }
+
+  // 点を描く層。全校を1枚のキャンバスにまとめて描く（地図を動かすたびに描き直す）
+  const DotLayer = L.Renderer.extend({
+    options: { padding: 0.4, pane: "dots" },
+    _initContainer() { this._container = L.DomUtil.create("canvas", "dotlayer"); this._ctx = this._container.getContext("2d"); },
+    _destroyContainer() { L.DomUtil.remove(this._container); },
+    // 描き直しは後回しにするので、最初の描き直しの前に地図が動くと中心が決まっていない。そのときは何もしない
+    _updateTransform(center, zoom) { if (this._center) L.Renderer.prototype._updateTransform.call(this, center, zoom); },
+    // 1回の操作で何度か呼ばれるので、描き直しは操作の直後の1回にまとめる
+    _update() {
+      if (this._queued) return;
+      this._queued = true;
+      Promise.resolve().then(() => {
+        this._queued = false;
+        if (!this._map || (this._map._animatingZoom && this._bounds)) return;
+        L.Renderer.prototype._update.call(this);
+        const b = this._bounds, size = b.getSize(), c = this._container;
+        this._dpr = Math.min(3, window.devicePixelRatio || 1);
+        L.DomUtil.setPosition(c, b.min);
+        c.width = Math.round(size.x * this._dpr); c.height = Math.round(size.y * this._dpr);
+        c.style.width = size.x + "px"; c.style.height = size.y + "px";
+        if (this.onDraw) this.onDraw();
+      });
+    },
+  });
+
+  const spots = [], spotOf = {};
+  let shown = [], drawn = [], grid = new Map(), sel = null;
+  const sprites = new Map();
+  const CELL = 32; // 押した場所の近くの点を探すためのます目(px)
+  const cellKey = (cx, cy) => (cx + 4096) * 8192 + cy + 4096;
+
+  function buildDots() {
+    const at = new Map();
+    D.schools.forEach((s) => {
+      if (s.la == null) return;
+      const k = s.la + "," + s.ln;
+      let p = at.get(k);
+      if (!p) {
+        const w = map.project([s.la, s.ln], 0); // ズーム0での位置。ズームzではこれの2のz乗倍
+        p = { lat: s.la, lng: s.ln, x0: w.x, y0: w.y, all: [], vis: [], comp: [], n: 0, key: "" };
+        at.set(k, p); spots.push(p);
+      }
+      p.all.push(s);
+      spotOf[s.i] = p;
+    });
+    // 描く順番を種類に関係なく混ぜる（ある種類をまとめて上に描くと、重なった所でその色ばかり目立つため）
+    let seed = 12345;
+    const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+    for (let i = spots.length - 1; i > 0; i--) { const j = Math.floor(rnd() * (i + 1)); [spots[i], spots[j]] = [spots[j], spots[i]]; }
+
+    dots = new DotLayer();
+    dots.onDraw = drawDots;
+    // 地図を大きく動かして、描いてある範囲の外が見えそうになったら、動かしている途中でも描き直す
+    map.on("move", () => {
+      if (map._animatingZoom || !dots._bounds || !map.hasLayer(dots)) return;
+      const tl = map.containerPointToLayerPoint([0, 0]), br = tl.add(map.getSize()), b = dots._bounds;
+      if (tl.x < b.min.x || tl.y < b.min.y || br.x > b.max.x || br.y > b.max.y) dots._update();
+    });
+
+    // 点は都道府県の面より上に描いてあるが、押す・重ねる操作は面が受け取る。そこで先回りして点に当たるか調べる
+    const el = map.getContainer();
+    const touch = window.matchMedia("(hover: none)").matches;
+    const tol = touch ? 12 : 4; // 指で押すときは、点の周りも押せるようにする
+    const outside = (e) => !map.hasLayer(dots) || (e.target.closest && e.target.closest(".leaflet-control, .leaflet-popup"));
+    el.addEventListener("click", (e) => {
+      if (outside(e) || (map.dragging && map.dragging.moved())) return;
+      const h = hitDot(map.mouseEventToLayerPoint(e), tol);
+      if (!h) return;
+      e.stopPropagation(); // 都道府県を押したこと（その県へ拡大）にしない
+      hideTip();
+      openSpot(h.s, null, h.others);
+    }, true);
+    const tip = L.tooltip({ direction: "top", opacity: 1, className: "dot-tip" });
+    let tipFor = null, moving = false;
+    function hideTip() { if (tipFor) { map.closeTooltip(tip); tipFor = null; } el.classList.remove("ondot"); }
+    map.on("movestart", () => { moving = true; hideTip(); });
+    map.on("moveend", () => { moving = false; });
+    if (!touch) {
+      el.addEventListener("mousemove", (e) => {
+        if (moving || outside(e)) { hideTip(); return; }
+        const h = hitDot(map.mouseEventToLayerPoint(e), tol);
+        if (!h) { hideTip(); return; }
+        el.classList.add("ondot");
+        if (tipFor === h.s) return;
+        tipFor = h.s;
+        tip.options.offset = [0, -Math.ceil(dotSize(h.s.n, map.getZoom()) / 2 + 2)];
+        tip.setLatLng([h.s.lat, h.s.lng]).setContent(dotTip(h.s));
+        map.openTooltip(tip);
+      }, true);
+      el.addEventListener("mouseleave", hideTip);
+    }
+    map.on("popupclose", (e) => { if (e.popup === spotPopup && sel) { sel = null; redrawDots(); } });
+    refreshDots();
+  }
+
+  function redrawDots() { if (map.hasLayer(dots) && !map._animatingZoom) drawDots(); }
+
+  function drawDots() {
+    const c = dots._container, g = dots._ctx, b = dots._bounds, r = dots._dpr;
+    if (!b) return;
+    g.setTransform(1, 0, 0, 1, 0, 0);
+    g.clearRect(0, 0, c.width, c.height);
+    const z = map.getZoom(), k = Math.pow(2, z), o = map.getPixelOrigin();
+    const ox = b.min.x + o.x, oy = b.min.y + o.y, W = b.max.x - b.min.x, H = b.max.y - b.min.y;
+    drawn = []; grid = new Map();
+    for (const s of shown) {
+      const x = s.x0 * k - ox, y = s.y0 * k - oy;
+      if (x < -12 || y < -12 || x > W + 12 || y > H + 12) continue;
+      const d = dotSize(s.n, z), w = dotLine(d), sp = sprite(s, d, w, false, r);
+      g.drawImage(sp.cv, Math.round(x * r) - sp.h, Math.round(y * r) - sp.h);
+      const key = cellKey(Math.floor(x / CELL), Math.floor(y / CELL)), list = grid.get(key);
+      if (list) list.push(drawn.length); else grid.set(key, [drawn.length]);
+      drawn.push({ s, x, y, rad: d / 2 + w / 2 });
+    }
+    // 選んだ点は一番上に、ひとまわり大きく黒い縁取りで描く
+    if (sel && sel.vis.length) {
+      const x = sel.x0 * k - ox, y = sel.y0 * k - oy, sp = sprite(sel, dotSize(sel.n, z) + 6, 2, true, r);
+      g.drawImage(sp.cv, Math.round(x * r) - sp.h, Math.round(y * r) - sp.h);
+    }
+  }
+
+  // 同じ見た目の点は1度だけ小さなキャンバスに描いておき、画面の画素にそろえて貼る（速く、輪郭もぼやけない）
+  function sprite(s, d, w, isSel, r) {
+    const key = s.key + "|" + d + "|" + w + "|" + (isSel ? 1 : 0) + "|" + r;
+    let sp = sprites.get(key);
+    if (!sp) {
+      let n = Math.ceil((d + w + (isSel ? 5 : 0) + 2) * r); n += n % 2;
+      const cv = document.createElement("canvas"); cv.width = cv.height = n;
+      const g = cv.getContext("2d"); g.scale(r, r);
+      paintDot(g, n / 2 / r, n / 2 / r, d, w, s.comp, s.rough, s.prov, isSel);
+      sp = { cv, h: n / 2 }; sprites.set(key, sp);
+    }
+    return sp;
+  }
+
+  // 指（マウス）の下にある点。上に描いた点ほど優先し、なければ一番近い点。others: そこに重なっているほかの点の数
+  function hitDot(lp, tol) {
+    const b = dots._bounds;
+    if (!b) return null;
+    const x = lp.x - b.min.x, y = lp.y - b.min.y, cx = Math.floor(x / CELL), cy = Math.floor(y / CELL);
+    let best = null, bestScore = Infinity, near = 0;
+    for (let i = -1; i <= 1; i++) for (let j = -1; j <= 1; j++) {
+      (grid.get(cellKey(cx + i, cy + j)) || []).forEach((idx) => {
+        const t = drawn[idx], dist = Math.hypot(t.x - x, t.y - y);
+        if (dist > t.rad + tol) return;
+        near++;
+        const score = dist <= t.rad ? -1 - idx : dist - t.rad;
+        if (score < bestScore) { bestScore = score; best = t; }
+      });
+    }
+    return best && { s: best.s, others: near - 1 };
+  }
+
+  // 表示中の種類に合わせて、点ごとの校数・色を数え直す
+  function refreshDots() {
+    shown = [];
+    spots.forEach((p) => {
+      p.vis = p.all.filter((s) => state.groups.has(s.g));
+      if (!p.vis.length) return;
+      const t = {};
+      p.vis.forEach((s) => { t[s.g] = (t[s.g] || 0) + 1; });
+      p.comp = Object.keys(GROUPS).filter((k) => t[k]).map((k) => [k, t[k]]).sort((a, b) => b[1] - a[1]);
+      p.n = p.vis.length;
+      p.rough = p.vis.every((s) => s.lv === 0);
+      p.prov = p.vis.every((s) => s.st);
+      p.key = p.comp.map((x) => x.join(":")).join(",") + (p.rough ? "~" : "") + (p.prov ? "?" : "");
+      shown.push(p);
+    });
+    // 大きい点（同じ位置の学校が多い点）を先に描いて下にし、小さい点が隠れないようにする
+    shown.sort((a, b) => tier(b.n) - tier(a.n));
+    if (sel && !sel.vis.length) { map.closePopup(spotPopup); sel = null; }
+    redrawDots();
+  }
+
+  function dotTip(p) {
+    const one = p.n === 1 ? p.vis[0] : null;
+    const head = one ? `<b>${esc(one.n)}</b><div>${shape(one.g, 12, one.lv === 0)} ${esc(TYPES[one.t].label)}</div>`
+      : `<b>この位置に${fmt(p.n)}校</b><div>${p.comp.map(([k, v]) => `${shape(k, 12)} ${esc(GROUPS[k].label)} ${fmt(v)}校`).join("<br>")}</div>`;
+    return `<div class="ctip">${head}<small>${p.rough ? "位置は町名の代表点・" : ""}押すと${one ? "くわしく" : "一覧を"}表示</small></div>`;
+  }
+
+  // 点を押したとき（focus：一覧から選んだ学校）。同じ位置の学校はまとめて見せる
+  let spotPopup = null;
+  function openSpot(p, focus, others) {
+    const vis = p.vis.length ? p.vis : p.all;
+    const list = focus ? [focus].concat(vis.filter((s) => s !== focus)) : vis;
+    let html = list.length > 1 ? `<p class="spot-head">この位置に${fmt(list.length)}校あります（同じ住所の区画・町の代表点）</p>` : "";
+    html += list.map(detailHtml).join("");
+    if (others > 0) html += `<p class="fine">この点の近くに、ほかに${fmt(others)}か所の点が重なっています。地図を拡大すると分かれて見えます。</p>`;
+    const popWidth = Math.min(320, Math.max(200, map.getSize().x - 64)); // スマホで地図からはみ出さない幅
+    if (!spotPopup) spotPopup = L.popup({ autoPanPaddingTopLeft: [12, 84], autoPanPaddingBottomRight: [12, 12] });
+    Object.assign(spotPopup.options, {
+      maxWidth: popWidth, minWidth: Math.min(220, popWidth),
+      maxHeight: list.length > 1 ? Math.max(220, Math.min(420, map.getSize().y - 120)) : null,
+      offset: [0, 5 - Math.ceil(dotSize(p.n || 1, map.getZoom()) / 2)], // 吹き出しの先を点の上の端に
+    });
+    sel = p;
+    spotPopup.setLatLng([p.lat, p.lng]).setContent(html).openOn(map);
+    redrawDots();
   }
 
   // 都道府県ごとの校数（表示中の種類。位置が分からない学校も都道府県は分かるので数える）
@@ -397,24 +594,21 @@
     return { values, breaks, ramp, color: (n) => colorFor(n, breaks, ramp), rows: scaleRows({ values, breaks }, "校", ramp) };
   }
 
-  // 全国表示：地域を選ばず引いて見ているとき。学校の点は出さず、都道府県ごとの校数を色で表す
-  function nationView() { return (nationView.last = !state.pref && map.getZoom() < NATION_BELOW); }
-
   // 地域を選んで点を見ている（人数の分布では地域へ寄せても色分けを残すので当たらない）
   function regionZoomed() { return !!state.pref && state.view !== "stats"; }
   // 都道府県を人数（国の統計）で塗るか
   function showFill() { return state.view === "stats"; }
-  // 都道府県を学校の数で塗るか
-  function showCount() { return state.view === "place" && nationView(); }
 
   function toggleLayer(layer, on) {
     if (on && !map.hasLayer(layer)) map.addLayer(layer);
     if (!on && map.hasLayer(layer)) map.removeLayer(layer);
   }
 
-  // 人数の分布では学校の点を出さない（学校の所在地と国の統計を混ぜないため）。全国表示でも点は出さない
+  // 人数の分布では学校の点を出さない（学校の所在地と国の統計を混ぜないため）。全国を見ているときも点を出す
   function syncMode() {
-    toggleLayer(cluster, state.view === "place" && !nationView());
+    const on = state.view === "place";
+    if (!on && sel) map.closePopup(spotPopup);
+    toggleLayer(dots, on);
   }
 
   function setView(v) {
@@ -430,8 +624,8 @@
   function prefTip(code) {
     const ind = indicator();
     if (state.view === "place") {
-      if (!showCount()) return esc(prefName[code]);
-      return `<b>${esc(prefName[code])}</b><br>学校 ${fmt(prefCounts()[code])}校（表示中の種類）<br><small>押すと拡大して学校の位置を表示</small>`;
+      if (code === state.pref) return esc(prefName[code]);
+      return `<b>${esc(prefName[code])}</b><br>学校 ${fmt(prefCounts()[code])}校（表示中の種類）<br><small>押すとこの都道府県へ拡大</small>`;
     }
     const v = variantOf(ind, state.variant);
     return `<b>${esc(prefName[code])}</b><br>${esc(short(ind, v))}：${valueText(v.values[code])}`;
@@ -449,23 +643,21 @@
     const code = f.properties.code;
     const ind = indicator();
     const selected = code === state.pref;
-    const base = { color: selected ? "#352D20" : "#7A6A45", weight: selected ? 3 : 1, opacity: selected ? 1 : 0.75 };
+    // 学校の点を見ているときは、灰色の背景に合わせて境界線も灰色にする
+    const line = showFill() ? "#7A6A45" : "#77776F";
+    const base = { color: selected ? "#352D20" : line, weight: selected ? 3 : 1, opacity: selected ? 1 : showFill() ? 0.75 : 0.6 };
     // 地域を選んで拡大したら人数の色は消し、選んだ地域の外を白く薄めて輪郭を見やすくする
     if (regionZoomed()) return Object.assign(base, { fillColor: "#fff", fillOpacity: selected ? 0.001 : VEIL });
-    if (showCount()) {
-      const cs = prefStyle.count || (prefStyle.count = countScale());
-      return Object.assign(base, { fillColor: cs.color(cs.values[code]), fillOpacity: 0.85 });
-    }
     if (!showFill()) return Object.assign(base, { fillColor: "#fff", fillOpacity: 0.001 });
     const v = variantOf(ind, state.variant);
     return Object.assign(base, { fillColor: colorFor(v.values[code], v.breaks), fillOpacity: fillOpacity() });
   }
 
   // 拡大するほど色を薄くして、町名や道路が読めるようにする（凡例の色も合わせる）
-  function fillOpacity() { return showCount() ? 0.85 : opacityAt(map ? map.getZoom() : 5); }
+  function fillOpacity() { return opacityAt(map ? map.getZoom() : 5); }
   function opacityAt(z) { return z >= 12 ? 0.25 : z >= 10 ? 0.4 : z >= 8 ? 0.62 : 0.85; }
 
-  function restyle() { prefStyle.count = null; prefLayer.setStyle(prefStyle); }
+  function restyle() { prefLayer.setStyle(prefStyle); }
 
   function syncFill() {
     restyle();
@@ -473,10 +665,8 @@
   }
 
   function applyGroups() {
-    cluster.clearLayers();
-    cluster.addLayers(D.schools.filter((s) => s.la != null && state.groups.has(s.g)).map((s) => markers[s.i]));
+    refreshDots();
     syncMode();
-    if (showCount()) { restyle(); renderLegend(); }
     const on = [...state.groups];
     $("now-types").textContent = on.length === 3 ? "すべて" : on.length ? on.map((k) => GROUPS[k].label).join("、") : "なし";
   }
@@ -506,8 +696,8 @@
   // スマホで、地図の上に今の色分けを小さく出す
   function syncBadge(ind, v) {
     const badge = $("layer-badge");
-    badge.hidden = !showFill() && !showCount();
-    badge.textContent = showFill() ? `色：${short(ind, v)}（${ind.period}・国の統計）` : showCount() ? "色：都道府県ごとの学校の数" : "";
+    badge.hidden = !showFill();
+    badge.textContent = showFill() ? `色：${short(ind, v)}（${ind.period}・国の統計）` : "";
   }
 
   // 凡例の1段（画像でも同じものを使う）
@@ -526,15 +716,13 @@
   function renderLegend() {
     const ind = indicator();
     const v = variantOf(ind, state.variant);
-    const pts = `<div class="lg-points">${Object.keys(GROUPS).map((k) => `<span>${shape(k, 16)}${GROUPS[k].label}</span>`).join("")}<span>${shape("jp", 16, true)}白抜き＝町名までしか位置が分からない学校</span><span><i class="lg-cl">3校</i>＝近い場所の学校をまとめた数（押すと拡大）</span></div>`
-      + '<p class="lg-note">点は1校に1つで、建物ではなく番地の区画や町の代表の位置です。大学・短大・高専・専門学校は本部・本校の所在地に置き、ほかのキャンパスは表示していません。</p>';
+    const pts = `<div class="lg-points">${Object.keys(GROUPS).map((k) => `<span>${shape(k, 16)}${GROUPS[k].label}</span>`).join("")}<span>${shape("jp", 16, true)}真ん中が白い点＝町名までしか位置が分からない学校</span></div>`
+      + `<div class="lg-points lg-sizes"><span class="lg-sz">${DOT_SIZES.map(([d]) => `<i style="width:${d}px;height:${d}px"></i>`).join("")}</span><span>点の大きさ＝同じ位置にある学校の数（${DOT_SIZES.map(([, t]) => t).join("・")}）</span></div>`
+      + '<p class="lg-note">学校は近くでもまとめず、1校ずつ点で表しています（全国を見たときも同じ）。同じ位置に何校もあるときは点1つにして大きくし、種類が混ざるときは校数の割合で塗り分けています。点の位置は建物ではなく番地の区画や町の代表の位置です。大学・短大・高専・専門学校は本部・本校の所在地に置き、ほかのキャンパスは表示していません。</p>';
     const scale = `<div class="lg-title">${esc(short(ind, v))}<small>${esc(ind.period)}・都道府県ごとの国の統計</small></div><ul class="lg-scale">${scaleRows(v).map((r) => `<li><i><b style="background:${r.color}"></b></i>${r.label}</li>`).join("")}</ul><p class="lg-note">色の濃さは都道府県の人数の多さです。学校ごとの人数ではありません。</p>`;
     let html;
     if (state.view === "stats") html = scale + '<p class="lg-note">学校の点は「学校の数と場所」で表示します。</p>';
-    else if (showCount()) {
-      const cs = countScale();
-      html = `<div class="lg-title">都道府県ごとの学校の数<small>色が濃いほど学校数が多い・表示中の種類の合計</small></div><ul class="lg-scale">${cs.rows.map((r) => `<li><i><b style="background:${r.color}"></b></i>${r.label}</li>`).join("")}</ul><p class="lg-note">学校の所在地を数えたもので、人数ではありません。都道府県を押すと拡大して、学校の位置を1校ずつ表示します。</p>`;
-    } else html = pts;
+    else html = pts;
     $("legend").innerHTML = html;
     $("legend").style.setProperty("--fo", fillOpacity());
     map.invalidateSize({ pan: false }); // 凡例の高さが変わると地図の高さも変わるため
@@ -779,7 +967,7 @@
   }
 
   function openSchool(s, btn) {
-    if (s.la != null && markers[s.i]) {
+    if (s.la != null && spotOf[s.i]) {
       if (window.matchMedia("(max-width: 899px)").matches) document.querySelector(".mapwrap").scrollIntoView({ behavior: "smooth", block: "start" });
       if (!state.groups.has(s.g)) {
         state.groups.add(s.g);
@@ -790,7 +978,7 @@
       }
       map.setView([s.la, s.ln], Math.max(map.getZoom(), 15), { animate: false });
       syncMode();
-      cluster.zoomToShowLayer(markers[s.i], () => markers[s.i].openPopup());
+      openSpot(spotOf[s.i], s, 0);
     } else if (btn) {
       const box = btn.parentElement.querySelector(".sch-detail");
       box.hidden = !box.hidden;
@@ -1048,9 +1236,10 @@
       total: D.schools.length,
       mapped: D.schools.filter((s) => s.la != null).length,
       zoom: map.getZoom(),
-      mode: showCount() ? "県ごとの校数の色分け" : map.hasLayer(cluster) ? "学校の点" : "点なし",
-      clusters: map.hasLayer(cluster) ? (() => { let n = 0; cluster._featureGroup.eachLayer((l) => { if (l.getChildCount && map.getBounds().contains(l.getLatLng())) n++; }); return n; })() : 0,
-      inCluster: cluster.getLayers().length,
+      mode: map.hasLayer(dots) ? "学校の点" : "点なし",
+      spots: shown.length, // 表示中の点の数（同じ位置の学校は1つ）
+      inDots: shown.reduce((t, p) => t + p.n, 0), // 点で表している学校の数
+      drawn: drawn.length, // 今の画面の近くに描いた点の数
       state: { pref: state.pref, city: state.city, groups: [...state.groups], view: state.view, layer: state.layer, variant: state.variant },
       fill: showFill(),
       summary: $("summary").innerText.replace(/\s+/g, " ").trim(),
