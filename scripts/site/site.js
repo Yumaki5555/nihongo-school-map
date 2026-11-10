@@ -16,7 +16,6 @@
     senmon: { label: "専門学校", group: "senmon" },
   };
   const RAMP = ["#FADFB8", "#F5C484", "#EBA053", "#CC7629", "#924C17"]; // 人数（国の統計）
-  const COUNT_RAMP = ["#DCE9F2", "#B0CDE3", "#7AA9CF", "#4580B5", "#1F5487"]; // 学校の数（人数と見分けるため別の色）
   const ZERO = "#FFFFFF";
   const NODATA = "#D9D6CE";
   const PAGE = 50;
@@ -570,30 +569,6 @@
     return c;
   }
 
-  // 校数の色の区切り（その時の47都道府県の数から、切りのよい数で5段階まで）。
-  // 4分の1ずつの区切りに、東京都のような飛び抜けて多い県を分ける区切りを1つ足す
-  function niceNum(x) {
-    const p = Math.pow(10, Math.floor(Math.log10(x)));
-    const m = x / p;
-    return (m < 1.5 ? 1 : m < 2.5 ? 2 : m < 4 ? 3 : m < 7.5 ? 5 : 10) * p;
-  }
-  function countBreaks(values) {
-    const v = Object.values(values).filter((x) => x > 0).sort((a, b) => a - b);
-    const out = [];
-    if (!v.length) return out;
-    const add = (x) => { const b = niceNum(Math.max(2, x)); if (b > v[0] && b <= v[v.length - 1] && b > (out[out.length - 1] || 0)) out.push(b); };
-    [0.25, 0.5, 0.75].forEach((q) => add(v[Math.min(v.length - 1, Math.floor(q * v.length))]));
-    if (out.length) add(Math.sqrt(out[out.length - 1] * v[v.length - 1]));
-    return out;
-  }
-  // 学校の数の色分け（地図と画像で共用）
-  function countScale() {
-    const values = prefCounts();
-    const breaks = countBreaks(values);
-    const ramp = COUNT_RAMP.slice(COUNT_RAMP.length - breaks.length - 1);
-    return { values, breaks, ramp, color: (n) => colorFor(n, breaks, ramp), rows: scaleRows({ values, breaks }, "校", ramp) };
-  }
-
   // 地域を選んで点を見ている（人数の分布では地域へ寄せても色分けを残すので当たらない）
   function regionZoomed() { return !!state.pref && state.view !== "stats"; }
   // 都道府県を人数（国の統計）で塗るか
@@ -1046,22 +1021,21 @@
     const v = variantOf(ind, state.variant);
     const base = imageBase(kind);
     if (kind === "schools") {
-      const cs = countScale();
+      const noPos = D.schools.filter((s) => state.groups.has(s.g) && s.la == null).length;
       return Object.assign(base, {
-        title: "都道府県別の学校の数",
+        title: "全国の学校の分布",
         subtitle: `数えたもの：${typesText()}の所在地（国の一覧に載っている学校）・確認日 ${jpDate(D.generated)}`,
         file: `nihongo-map_schools_japan_${dateStamp()}.png`,
-        fill: (code) => cs.color(cs.values[code]),
-        fillOpacity: 0.9,
+        // 地図のページの点そのもの（表示中の種類だけ。同じ位置の学校は点1つ）
+        dots: shown.map((p) => ({ la: p.lat, ln: p.lng, comp: p.comp, n: p.n, rough: p.rough, prov: p.prov })),
         selected: state.pref,
         rows: schoolRows(countsWhere(() => true)),
-        scale: cs.rows,
-        top: topRows(cs.values, "校"),
+        top: topRows(prefCounts(), "校"),
         metric: null,
         notes: [
-          "色は表示中の種類の校数の合計です。人数ではありません。",
+          "同じ位置にある学校は、大きい点1つにまとめています。",
           "大学・短大・高専・専門学校は本部・本校の所在地で数えています。日本語学校でもある専門学校があるため、種類をまたいだ合計は出していません。",
-        ],
+        ].concat(noPos ? [`位置が分からない${fmt(noPos)}校は地図に描いていません（上の校数には入っています）。`] : []),
         foot: [base.schoolLine],
       });
     }

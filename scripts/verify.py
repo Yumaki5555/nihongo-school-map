@@ -189,6 +189,7 @@ ok("全国表示も学校の点で表す（都道府県の校数の色分け・�
 ok("点の大きさは民泊マップと同じ（1校10/13/14/15/17px、同じ位置の校数で2pxずつ）", "z <= 9 ? 10 : z <= 11 ? 13 : z <= 13 ? 14 : z <= 15 ? 15 : 17" in sj and "tier(n) * 2" in sj, "")
 ok("背景は民泊マップと同じ淡いグレー（OpenStreetMap Japan を灰色に）", "tile.openstreetmap.jp/styles/maptiler-basic-ja" in sj and "grayscale(.8) contrast(.72) brightness(1.15)" in sj, "")
 ok("地図のページでまとめ表示の部品を読み込まない", all("markercluster" not in (DOCS / p).read_text(encoding="utf-8") for p in ["index.html", "map.html"] if (DOCS / p).exists()), "")
+ok("保存画像A（全国の学校分布）も地図と同じ点で描く（都道府県の校数の色分けなし）", "function drawDots" in img and "dots: shown.map" in sj and "countScale" not in sj and "COUNT_RAMP" not in sj, "")
 ok("保存画像に数字入りのまとめた丸がない", "drawBubble" not in img and "drawPill" not in img and "clusterPts" not in img, "")
 gidx = load(DOCS / "data/geo/index.json")
 geo_cities, geo_name, geo_poly = set(), {}, {}
